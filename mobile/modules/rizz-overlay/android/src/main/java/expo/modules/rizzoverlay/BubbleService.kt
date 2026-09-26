@@ -93,7 +93,12 @@ class BubbleService : Service() {
       stopSelf()
       return START_NOT_STICKY
     }
-    capturer = ScreenCapturer(this, projection) { main.post { stopSelf() } }
+    capturer = try {
+      ScreenCapturer(this, projection) { main.post { stopSelf() } }
+    } catch (e: Exception) {
+      stopSelf() // capture unavailable — end live mode instead of crashing
+      return START_NOT_STICKY
+    }
     instance = this
     addBubble()
     return START_NOT_STICKY

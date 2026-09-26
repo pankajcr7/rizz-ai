@@ -41,11 +41,17 @@ class ScreenCapturer(
     projection.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() = onStopped()
     }, handler)
+    // Returns null if the system refuses (e.g. consent revoked) — fail loudly so the service can stop cleanly.
     display = projection.createVirtualDisplay(
       "rizz-live", w, h, dpi,
       DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
       reader.surface, null, handler,
-    )
+    ) ?: run {
+      reader.close()
+      projection.stop()
+      thread.quitSafely()
+      throw IllegalStateException("Screen capture was refused by the system")
+    }
   }
 
   /** Latest frame as a Bitmap, or null if nothing has been drawn yet. */
