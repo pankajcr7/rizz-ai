@@ -84,6 +84,12 @@ describe("API", () => {
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:8081");
   });
 
+  it("answers the bare URL with a status message", async () => {
+    const res = await app.inject({ method: "GET", url: "/" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ name: "Rizz AI API", status: "ok" });
+  });
+
   it("rejects bad device ids", async () => {
     const res = await app.inject({ method: "POST", url: "/v1/session", payload: { deviceId: "short" } });
     expect(res.statusCode).toBe(400);

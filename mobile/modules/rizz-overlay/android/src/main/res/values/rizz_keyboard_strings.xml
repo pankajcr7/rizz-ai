@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="rizz_keyboard_label">Rizz AI Keyboard</string>
+  <string name="rizz_keyboard_subtype">English (Rizz AI)</string>
+  <string name="rizz_smart_label">Rizz AI smart replies</string>
+</resources>

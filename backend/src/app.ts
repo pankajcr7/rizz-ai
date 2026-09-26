@@ -61,6 +61,8 @@ export async function buildApp(deps: Deps, opts: AppOptions = {}) {
   });
 
   app.get("/health", async () => ({ ok: true }));
+  // Opening the bare URL in a browser shouldn't look like an error.
+  app.get("/", async () => ({ name: "Rizz AI API", status: "ok", health: "/health", api: "/v1" }));
   await app.register(async (scope) => v1Routes(scope, deps));
   return app;
 }

@@ -1,0 +1,38 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Live mode: floating bubble over chat apps -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application>
+    <service
+      android:name="expo.modules.rizzoverlay.BubbleService"
+      android:exported="false"
+      android:foregroundServiceType="mediaProjection" />
+
+    <!-- Rizz AI Keyboard (input method). The user enables it in system settings. -->
+    <service
+      android:name="expo.modules.rizzoverlay.RizzKeyboardService"
+      android:label="@string/rizz_keyboard_label"
+      android:permission="android.permission.BIND_INPUT_METHOD"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.view.InputMethod" />
+      </intent-filter>
+      <meta-data android:name="android.view.im" android:resource="@xml/rizz_method" />
+    </service>
+
+    <!-- Smart notifications: "✨ Get replies" on new messages from apps the user switched on. -->
+    <service
+      android:name="expo.modules.rizzoverlay.RizzNotificationListener"
+      android:label="@string/rizz_smart_label"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+    <receiver android:name="expo.modules.rizzoverlay.SmartNotifyReceiver" android:exported="false" />
+  </application>
+</manifest>

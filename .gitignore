@@ -7,3 +7,8 @@ mobile/.expo/
 mobile/dist/
 mobile/android/
 mobile/ios/
+
+# Generated native projects / stray Expo files at the repo root (the app lives in mobile/)
+/android/
+/ios/
+/app.json
