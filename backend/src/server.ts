@@ -2,6 +2,7 @@ import pg from "pg";
 import { buildApp } from "./app.js";
 import { cleanEnv, createAIFromEnv } from "./ai/providers.js";
 import { createGroqTranscriber } from "./ai/transcribe.js";
+import { cleanDatabaseUrl, describeDatabaseUrl } from "./plans/dbUrl.js";
 import { migrate, PgEntitlements, PgQuota, PgReferrals } from "./plans/postgres.js";
 import { CHAT_LIMITS, DAILY_LIMITS, EXTRACT_LIMITS, MemoryEntitlements, MemoryQuota } from "./plans/quota.js";
 import { MemoryReferrals } from "./plans/referrals.js";
@@ -29,11 +30,23 @@ try {
 let pool: pg.Pool | undefined;
 let stores;
 if (env.DATABASE_URL) {
-  pool = new pg.Pool({ connectionString: env.DATABASE_URL, max: Number(env.DB_POOL_SIZE ?? 5) });
+  let connectionString: string;
+  try {
+    connectionString = cleanDatabaseUrl(env.DATABASE_URL);
+  } catch (err) {
+    console.error(`❌ ${(err as Error).message}`);
+    process.exit(1);
+  }
+  pool = new pg.Pool({
+    connectionString,
+    max: Number(env.DB_POOL_SIZE ?? 5),
+    // Neon URLs include channel_binding=require; pg only honours it via this option.
+    enableChannelBinding: new URL(connectionString).searchParams.get("channel_binding") === "require",
+  });
   try {
     await migrate(pool);
   } catch (err) {
-    console.error(`❌ Could not connect to the database: ${(err as Error).message}`);
+    console.error(`❌ Could not connect to the database at ${describeDatabaseUrl(connectionString)}: ${(err as Error).message}`);
     process.exit(1);
   }
   stores = {
@@ -43,7 +56,7 @@ if (env.DATABASE_URL) {
     entitlements: new PgEntitlements(pool),
     referrals: new PgReferrals(pool),
   };
-  console.log("Storage: Postgres");
+  console.log(`Storage: Postgres (${describeDatabaseUrl(connectionString)})`);
 } else {
   if (production) console.warn("⚠️  No DATABASE_URL in production — quotas, Pro and referrals will reset on every restart.");
   stores = {
