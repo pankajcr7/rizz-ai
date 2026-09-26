@@ -1,0 +1,9 @@
+{
+  "name": "@rizz/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "dependencies": { "zod": "^4.6.5" }
+}

@@ -1,0 +1,34 @@
+# Render Blueprint: one-click deploy of the Rizz AI backend with HTTPS.
+# Render dashboard → New → Blueprint → pick this repo. It will ask for the
+# values marked `sync: false` (your secrets); the rest is filled in here.
+services:
+  - type: web
+    name: rizz-ai-api
+    runtime: node
+    plan: free # upgrade to "starter" to avoid cold starts after 15 min idle
+    region: singapore # closest Render region to India
+    buildCommand: npm ci --workspace=backend --workspace=shared --omit=dev --no-audit --no-fund
+    startCommand: npm start --workspace=backend
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TOKEN_SECRET
+        generateValue: true
+      # Postgres connection string, e.g. from Neon (free): postgresql://…?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      # Free AI: https://console.groq.com/keys
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional free fallback (test data only on the free tier): https://aistudio.google.com/apikey
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_FALLBACK
+        sync: false
+      # RevenueCat → Integrations → Webhooks → Authorization header value ("Bearer <this>")
+      - key: REVENUECAT_WEBHOOK_SECRET
+        generateValue: true
