@@ -11,6 +11,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -60,6 +61,7 @@ object SmartNotify {
   val pending = ConcurrentHashMap<Int, Pending>()
   @Volatile var captureTarget: Pending? = null
   @Volatile var captureTargetAt: Long = 0
+  @Volatile var pendingToOpen: Pair<Int, Pending>? = null
 
   fun platform(pkg: String): String = when (pkg) {
     "com.facebook.orca" -> "facebook"
@@ -324,6 +326,17 @@ class SmartOpenChatActivity : Activity() {
   companion object {
     fun open(ctx: Context, id: Int, p: SmartNotify.Pending) {
       val bubbleReady = BubbleService.instance != null && BubbleService.listener != null
+      if (!bubbleReady) {
+        SmartNotify.pendingToOpen = id to p
+        runCatching {
+          ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("rizzai://live"))
+            .setPackage(ctx.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        SmartNotify.notify(ctx, id, SmartNotify.builder(ctx)
+          .setSmallIcon(android.R.drawable.ic_menu_edit).setContentTitle("✨ ${p.title}")
+          .setContentText("Start Live mode to read this chat once").setAutoCancel(true).build())
+        return
+      }
       val opened = runCatching {
         if (p.openChat != null) p.openChat.send()
         else {

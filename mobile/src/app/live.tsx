@@ -24,6 +24,7 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
   const [running, setRunning] = useState(RizzOverlay.isRunning());
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(false);
+  const [pendingChat] = useState(RizzOverlay.smart.pendingChat());
 
   const refresh = useCallback(() => {
     setOverlayOk(RizzOverlay.hasOverlayPermission());
@@ -45,6 +46,14 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
     try {
       const ok = await RizzOverlay.start();
       setRunning(ok);
+      if (ok && pendingChat) {
+        let attempts = 0;
+        const openWhenReady = () => {
+          if (RizzOverlay.smart.openPendingChat() || ++attempts >= 12) return;
+          setTimeout(openWhenReady, 250);
+        };
+        openWhenReady();
+      }
       if (!ok) setError("Live mode needs screen access to read your chats. Tap Start and choose “Start now”.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start live mode");
@@ -59,11 +68,12 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
         running ? (
           <Button title="Stop Live mode" variant="secondary" icon="stop-circle-outline" onPress={() => { RizzOverlay.stop(); setRunning(false); }} />
         ) : (
-          <Button title="Start Live mode" icon="radio-button-on" disabled={!overlayOk} loading={starting} onPress={start} />
+          <Button title={pendingChat ? `Start Live mode & open ${pendingChat.name}` : "Start Live mode"} icon="radio-button-on" disabled={!overlayOk} loading={starting} onPress={start} />
         )
       }
     >
       <Header title="Live mode" subtitle="Replies right inside Instagram, Tinder, Snapchat…" left={back} />
+      {pendingChat ? <Notice tone="info" text={`Start Live mode to open ${pendingChat.name} on ${pendingChat.platform}. Scroll up through the chat, then tap Done. We'll save it for future replies.`} /> : null}
 
       <Card style={{ marginBottom: space(6) }}>
         <Step n={1} done={overlayOk} title="Allow “Display over other apps”" body="Lets the ✨ bubble float above your chats." />
