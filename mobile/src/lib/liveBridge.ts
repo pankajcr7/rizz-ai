@@ -177,7 +177,7 @@ export function startLiveBridge(): () => void {
         const person = state.findByName(lastChat.theirName, lastChat.platform)
           ?? state.add(lastChat.theirName, lastChat.platform);
         state.saveChat(person.id, lastChat.messages);
-        RizzOverlay.smart.saveConversation(lastChat.platform, lastChat.theirName, lastChat.messages);
+        RizzOverlay.smart.saveConversation(lastChat.platform, lastChat.theirName, lastChat.messages, lastChat.wholeChat);
         lastChat = { ...lastChat, messages: useCrushes.getState().findByName(lastChat.theirName, lastChat.platform)?.chat ?? lastChat.messages };
       }
       void run(useApp.getState().defaultTone);

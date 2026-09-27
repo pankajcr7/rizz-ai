@@ -166,7 +166,7 @@ class RizzOverlayModule : Module() {
     }
 
     /** Save a user-read chat for the same person and social app as future notifications. */
-    Function("saveSmartConversation") { platform: String, name: String, json: String ->
+    Function("saveSmartConversation") { platform: String, name: String, json: String, complete: Boolean ->
       val pkg = SmartNotify.SUPPORTED.entries.firstOrNull {
         it.value.equals(platform, ignoreCase = true) || (platform == "facebook" && it.key == "com.facebook.orca")
       }?.key ?: SmartNotify.pending.values.map { it.pkg to it.title }
@@ -180,6 +180,7 @@ class RizzOverlayModule : Module() {
           if (from in setOf("me", "them") && text.isNotBlank()) SmartConversationHistory.Line(from, text) else null
         }
         SmartConversationHistory.append(context, pkg, name, lines)
+        if (complete && lines.isNotEmpty()) SmartConversationHistory.markFullyRead(context, pkg, name)
         SmartNotify.captureTarget = null
       }
     }

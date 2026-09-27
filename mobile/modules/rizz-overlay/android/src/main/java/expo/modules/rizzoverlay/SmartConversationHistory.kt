@@ -58,4 +58,11 @@ object SmartConversationHistory {
     if (pkg == null) editor.clear() else prefs.all.keys.filter { it.startsWith("$pkg|") }.forEach(editor::remove)
     editor.apply()
   }
+
+  fun markFullyRead(ctx: Context, pkg: String, name: String) {
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("${key(pkg, name)}|complete", true).apply()
+  }
+
+  fun fullyRead(ctx: Context, pkg: String, name: String): Boolean =
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("${key(pkg, name)}|complete", false)
 }
