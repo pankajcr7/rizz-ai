@@ -82,10 +82,11 @@ function TopBar() {
 }
 
 function ReplyInput() {
-  const { draftChat: messages, setDraftChat: setMessages, setDraftMeta, platform } = useApp();
+  const { draftChat: messages, setDraftChat: setMessages, replyDraft, setReplyDraft, setDraftMeta, platform } = useApp();
   const [paste, setPaste] = useState(false);
   const [text, setText] = useState("");
   const [builder, setBuilder] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(!!replyDraft);
   const [typed, setTyped] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string>();
@@ -124,6 +125,7 @@ function ReplyInput() {
 
   const clear = () => {
     setMessages([]);
+    setReplyDraft("");
     setText("");
     setPaste(false);
     setBuilder(false);
@@ -148,6 +150,7 @@ function ReplyInput() {
         <T v="small" color={colors.textMute} style={{ textAlign: "center", marginTop: space(2), fontSize: 12 }}>
           Tap a bubble to switch sides · hold to remove
         </T>
+        <DraftPolish open={draftOpen} setOpen={setDraftOpen} value={replyDraft} onChange={setReplyDraft} />
       </Card>
     );
   }
@@ -194,6 +197,31 @@ function ReplyInput() {
           <Button title="Type it" icon="create-outline" variant="secondary" size="md" onPress={() => setBuilder(true)} style={{ flex: 1 }} />
         </View>
       )}
+      <DraftPolish open={draftOpen} setOpen={setDraftOpen} value={replyDraft} onChange={setReplyDraft} />
+    </View>
+  );
+}
+
+function DraftPolish({ open, setOpen, value, onChange }: { open: boolean; setOpen: (v: boolean) => void; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={{ marginTop: space(4) }}>
+      <Pressable onPress={() => setOpen(!open)} style={styles.draftToggle} accessibilityRole="button">
+        <View style={{ flex: 1 }}>
+          <T v="bodyStrong">Already know what you want to say?</T>
+          <T v="small" color={colors.textDim}>Write it roughly. Rizz AI will clean it up without changing your meaning.</T>
+        </View>
+        <Ionicons name={open ? "chevron-up" : "create-outline"} size={20} color={colors.pink} />
+      </Pressable>
+      {open ? (
+        <Input
+          multiline
+          value={value}
+          onChangeText={onChange}
+          placeholder="e.g. can't do Friday, maybe Sunday afternoon?"
+          maxLength={1000}
+          style={{ minHeight: 86, marginTop: space(2) }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -302,13 +330,13 @@ function ProfileInput() {
 }
 
 function Footer({ mode }: { mode: Mode }) {
-  const { draftChat, defaultTone, goal, platform, theirName, prefs } = useApp();
+  const { draftChat, replyDraft, defaultTone, goal, platform, theirName, prefs } = useApp();
   const { openerImage, openerBio } = useOpenerDraft();
   const profile = useProfileDraft();
   const run = useSession((s) => s.run);
   const crush = useCrushes((s) => s.crushes.find((c) => c.id === s.activeId));
   const ready =
-    mode === "reply" ? draftChat.length > 0 : mode === "opener" ? !!openerImage || !!openerBio.trim() : profile.images.length > 0 || !!profile.bio.trim();
+    mode === "reply" ? draftChat.length > 0 || !!replyDraft.trim() : mode === "opener" ? !!openerImage || !!openerBio.trim() : profile.images.length > 0 || !!profile.bio.trim();
 
   const go = () => {
     if (mode === "reply") {
@@ -323,6 +351,7 @@ function Footer({ mode }: { mode: Mode }) {
           theirName: crush?.name ?? theirName,
           notes: crush?.notes || undefined,
           memory: crush?.facts.length ? crush.facts : undefined,
+          draft: replyDraft.trim() || undefined,
           prefs,
         },
       });
@@ -336,7 +365,7 @@ function Footer({ mode }: { mode: Mode }) {
 
   return (
     <Button
-      title={mode === "reply" ? "Get replies" : mode === "opener" ? "Write openers" : "Review my profile"}
+      title={mode === "reply" ? (replyDraft.trim() && !draftChat.length ? "Polish my message" : "Get replies") : mode === "opener" ? "Write openers" : "Review my profile"}
       icon="sparkles"
       disabled={!ready}
       onPress={go}
@@ -385,4 +414,5 @@ const styles = StyleSheet.create({
   photoRemove: { position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   roastRow: { flexDirection: "row", alignItems: "center", gap: space(3), marginTop: space(4), padding: space(4), borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   live: { flexDirection: "row", alignItems: "center", gap: space(3), marginTop: space(5) },
+  draftToggle: { flexDirection: "row", alignItems: "center", gap: space(3), padding: space(3), borderRadius: radius.md, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
 });

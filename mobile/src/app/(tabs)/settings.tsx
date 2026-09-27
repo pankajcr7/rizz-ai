@@ -19,7 +19,7 @@ import { secureStorage } from "../../lib/secureStorage";
 import { useApp } from "../../store";
 import { colors, font, space } from "../../theme";
 
-type SheetId = "tone" | "language" | "boldness" | "length" | "emoji" | "about" | "redeem" | null;
+type SheetId = "tone" | "language" | "boldness" | "length" | "emoji" | "about" | "style" | "redeem" | null;
 
 const LENGTHS: { id: Preferences["length"]; label: string }[] = [
   { id: "short", label: "Short" },
@@ -36,6 +36,7 @@ export default function Me() {
   const { prefs, setPrefs, defaultTone, setDefaultTone, saveHistory, setSaveHistory, quota, referral, setReferral, refreshMe, resetAll } = useApp();
   const [sheet, setSheet] = useState<SheetId>(null);
   const [about, setAbout] = useState(prefs.aboutMe ?? "");
+  const [styleText, setStyleText] = useState((prefs.styleExamples ?? []).join("\n"));
   const pro = quota?.plan === "pro";
   const progress = useProgress();
   const level = levelFor(progress.xp);
@@ -216,6 +217,7 @@ export default function Me() {
           <ListRow icon="flame-outline" title="Boldness" value={`${boldLabel(prefs.boldness)} (${prefs.boldness}/5)`} onPress={() => setSheet("boldness")} />
           <ListRow icon="resize-outline" title="Reply length" value={LENGTHS.find((l) => l.id === prefs.length)?.label} onPress={() => setSheet("length")} />
           <ListRow icon="happy" title="Emojis" value={EMOJIS[prefs.emoji]?.label} onPress={() => setSheet("emoji")} />
+          <ListRow icon="chatbubble-ellipses-outline" title="My texting style" value={prefs.styleExamples?.length ? `${prefs.styleExamples.length} examples` : "Teach it"} onPress={() => setSheet("style")} />
           <ListRow icon="person-outline" title="About me" value={prefs.aboutMe || "Not set"} onPress={() => setSheet("about")} last />
         </ListGroup>
       </Section>
@@ -276,6 +278,45 @@ export default function Me() {
       >
         {redeemError ? <Notice text={redeemError} /> : null}
         <Input value={code} onChangeText={(t) => setCode(t.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))} placeholder="ABC234" autoCapitalize="characters" autoCorrect={false} style={{ fontSize: 24, letterSpacing: 6, textAlign: "center", fontFamily: font.bold }} />
+      </Sheet>
+      <Sheet
+        open={sheet === "style"}
+        onClose={close}
+        title="Teach Rizz AI your style"
+        footer={
+          <Button
+            title="Save my style"
+            onPress={() => {
+              const examples = styleText
+                .split("\n")
+                .map((x) => x.trim())
+                .filter(Boolean)
+                .slice(0, 5);
+              setPrefs({ styleExamples: examples.length ? examples : undefined });
+              close();
+            }}
+          />
+        }
+      >
+        <T v="small" color={colors.textDim} style={{ marginBottom: space(3) }}>
+          Paste 3–5 messages you actually sent. Put one message per line. We copy your rhythm, slang and punctuation — never the facts inside them.
+        </T>
+        <Input
+          value={styleText}
+          onChangeText={setStyleText}
+          placeholder={"haha fair enough 😂\nkal dekhte hain kya scene hai\nngl that sounds fun"}
+          maxLength={1500}
+          multiline
+          style={{ minHeight: 150 }}
+        />
+        {prefs.styleAvoid?.length ? (
+          <View style={{ marginTop: space(4) }}>
+            <T v="small" color={colors.textDim}>
+              Learned from your feedback: {prefs.styleAvoid.length} preference{prefs.styleAvoid.length === 1 ? "" : "s"}.
+            </T>
+            <Button title="Clear learned feedback" variant="ghost" size="sm" onPress={() => setPrefs({ styleAvoid: undefined })} style={{ alignSelf: "flex-start", marginTop: space(2) }} />
+          </View>
+        ) : null}
       </Sheet>
       <Sheet
         open={sheet === "about"}

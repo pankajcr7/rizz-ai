@@ -80,6 +80,10 @@ export const PreferencesSchema = z.object({
   boldness: z.number().int().min(1).max(5).default(3),
   /** A few words about the user so replies sound like them ("21, gym, loves anime"). */
   aboutMe: z.string().trim().max(300).optional(),
+  /** Real messages written by the user, used only as style examples. */
+  styleExamples: z.array(z.string().trim().min(1).max(300)).max(5).optional(),
+  /** Things the user has explicitly told us to avoid in future suggestions. */
+  styleAvoid: z.array(z.enum(["too_cheesy", "too_formal", "too_flirty", "too_long", "missed_point"])).max(5).optional(),
 });
 export type Preferences = z.infer<typeof PreferencesSchema>;
 
@@ -142,6 +146,10 @@ export const SuggestResponseSchema = z.object({
   coachTip: z.string(),
   /** New lasting facts about THEM learned from this chat, for their crush profile. */
   memory: z.array(z.string()),
+  /** Clear guidance for what the user should do next. */
+  nextMove: z.object({ action: z.enum(["reply", "wait", "end"]), reason: z.string() }).optional(),
+  /** Present when a useful reply needs a personal fact the model does not know. */
+  missingInfo: z.object({ prompt: z.string() }).optional(),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponseSchema>;
 

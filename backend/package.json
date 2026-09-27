@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "test": "vitest run",
+    "eval:replies": "node --env-file-if-exists=.env --import tsx eval/replies.ts",
     "dev": "node --env-file-if-exists=.env --watch --import tsx src/server.ts",
     "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "typecheck": "tsc --noEmit"

@@ -178,5 +178,7 @@ export function normalizeSuggest(out: z.infer<typeof SuggestOut>, count: number,
     safety: { flag, message: out.safety.message },
     coachTip: out.coachTip,
     memory: flag === "possible_minor" ? [] : cleanMemory(out.memory ?? []),
+    nextMove: out.nextMove,
+    missingInfo: out.missingInfo,
   };
 }
