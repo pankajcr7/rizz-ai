@@ -21,6 +21,8 @@ declare class RizzOverlayNative extends NativeModule<RizzOverlayModuleEvents> {
   getSmartApps(): string;
   setSmartApps(json: string): void;
   getSmartCaptureTarget(): string;
+  getPendingSmartChat(): string;
+  openPendingSmartChat(): boolean;
   saveSmartConversation(platform: string, name: string, json: string, complete: boolean): void;
   clearSmartConversations(): void;
 }
@@ -55,6 +57,11 @@ export const RizzOverlay = {
       const raw = native?.getSmartCaptureTarget();
       return raw ? JSON.parse(raw) : null;
     },
+    pendingChat: (): { name: string; platform: string } | null => {
+      const raw = native?.getPendingSmartChat();
+      return raw ? JSON.parse(raw) : null;
+    },
+    openPendingChat: () => native?.openPendingSmartChat() ?? false,
     saveConversation: (platform: string, name: string, messages: { from: "me" | "them"; text: string }[], complete = false) => native?.saveSmartConversation(platform, name, JSON.stringify(messages), complete),
     clearConversations: () => native?.clearSmartConversations(),
   },

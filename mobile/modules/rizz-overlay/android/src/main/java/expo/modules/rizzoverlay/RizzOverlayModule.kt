@@ -165,6 +165,22 @@ class RizzOverlayModule : Module() {
       } ?: ""
     }
 
+    Function("getPendingSmartChat") {
+      SmartNotify.pendingToOpen?.let { (_, target) ->
+        org.json.JSONObject().put("name", target.title).put("platform", SmartNotify.platform(target.pkg)).toString()
+      } ?: ""
+    }
+
+    Function("openPendingSmartChat") {
+      val pending = SmartNotify.pendingToOpen
+      if (pending == null || BubbleService.instance == null || BubbleService.listener == null) false
+      else {
+        SmartNotify.pendingToOpen = null
+        SmartOpenChatActivity.open(appContext.currentActivity ?: context, pending.first, pending.second)
+        true
+      }
+    }
+
     /** Save a user-read chat for the same person and social app as future notifications. */
     Function("saveSmartConversation") { platform: String, name: String, json: String, complete: Boolean ->
       val pkg = SmartNotify.SUPPORTED.entries.firstOrNull {
