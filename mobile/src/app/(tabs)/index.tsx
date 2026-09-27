@@ -57,11 +57,12 @@ function TopBar() {
   return (
     <View style={styles.topBar}>
       <View style={{ flex: 1 }}>
-        <T v="small" color={colors.textDim}>
-          Hey 👋
-        </T>
-        <T v="display" style={{ marginTop: 2 }}>
+        <T v="caption" color={colors.text}>RIZZ</T>
+        <T v="display" style={{ marginTop: space(3) }}>
           What did they say?
+        </T>
+        <T v="body" color={colors.textDim} style={{ marginTop: space(2) }}>
+          Drop the chat. Keep your voice.
         </T>
       </View>
       <Pressable onPress={() => router.push("/progress")} style={[styles.credits, { marginRight: space(2) }]} accessibilityLabel={`${streak} day streak. Open progress.`}>
@@ -81,10 +82,11 @@ function TopBar() {
 }
 
 function ReplyInput() {
-  const { draftChat: messages, setDraftChat: setMessages, setDraftMeta, platform } = useApp();
+  const { draftChat: messages, setDraftChat: setMessages, replyDraft, setReplyDraft, setDraftMeta, platform } = useApp();
   const [paste, setPaste] = useState(false);
   const [text, setText] = useState("");
   const [builder, setBuilder] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(!!replyDraft);
   const [typed, setTyped] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string>();
@@ -123,6 +125,7 @@ function ReplyInput() {
 
   const clear = () => {
     setMessages([]);
+    setReplyDraft("");
     setText("");
     setPaste(false);
     setBuilder(false);
@@ -147,6 +150,7 @@ function ReplyInput() {
         <T v="small" color={colors.textMute} style={{ textAlign: "center", marginTop: space(2), fontSize: 12 }}>
           Tap a bubble to switch sides · hold to remove
         </T>
+        <DraftPolish open={draftOpen} setOpen={setDraftOpen} value={replyDraft} onChange={setReplyDraft} />
       </Card>
     );
   }
@@ -155,13 +159,15 @@ function ReplyInput() {
     <View>
       {error ? <Notice text={error} /> : null}
       <Pressable onPress={scan} disabled={scanning} style={({ pressed }) => [styles.drop, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Upload a chat screenshot">
-        <View style={styles.dropIcon}>
-          <Ionicons name={scanning ? "hourglass-outline" : "image-outline"} size={26} color={colors.pink} />
-        </View>
-        <T v="headline">{scanning ? "Reading the screenshot…" : "Upload a screenshot"}</T>
-        <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
-          Instagram, Tinder, Snapchat, WhatsApp…
+        <T v="caption" color={colors.textMute}>NEW REPLY</T>
+        <T v="title" style={{ marginTop: space(2) }}>{scanning ? "Reading the screenshot…" : "Start with the conversation"}</T>
+        <T v="body" color={colors.textDim} style={{ marginTop: space(2) }}>
+          Screenshot, paste, or type a few messages.
         </T>
+        <View style={styles.dropAction}>
+          <Ionicons name={scanning ? "hourglass-outline" : "image-outline"} size={19} color={colors.bg} />
+          <T v="bodyStrong" color={colors.bg}>{scanning ? "Reading…" : "Add screenshot"}</T>
+        </View>
       </Pressable>
 
       <View style={styles.orRow}>
@@ -191,6 +197,31 @@ function ReplyInput() {
           <Button title="Type it" icon="create-outline" variant="secondary" size="md" onPress={() => setBuilder(true)} style={{ flex: 1 }} />
         </View>
       )}
+      <DraftPolish open={draftOpen} setOpen={setDraftOpen} value={replyDraft} onChange={setReplyDraft} />
+    </View>
+  );
+}
+
+function DraftPolish({ open, setOpen, value, onChange }: { open: boolean; setOpen: (v: boolean) => void; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={{ marginTop: space(4) }}>
+      <Pressable onPress={() => setOpen(!open)} style={styles.draftToggle} accessibilityRole="button">
+        <View style={{ flex: 1 }}>
+          <T v="bodyStrong">Already know what you want to say?</T>
+          <T v="small" color={colors.textDim}>Write it roughly. Rizz AI will clean it up without changing your meaning.</T>
+        </View>
+        <Ionicons name={open ? "chevron-up" : "create-outline"} size={20} color={colors.pink} />
+      </Pressable>
+      {open ? (
+        <Input
+          multiline
+          value={value}
+          onChangeText={onChange}
+          placeholder="e.g. can't do Friday, maybe Sunday afternoon?"
+          maxLength={1000}
+          style={{ minHeight: 86, marginTop: space(2) }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -299,13 +330,13 @@ function ProfileInput() {
 }
 
 function Footer({ mode }: { mode: Mode }) {
-  const { draftChat, defaultTone, goal, platform, theirName, prefs } = useApp();
+  const { draftChat, replyDraft, defaultTone, goal, platform, theirName, prefs } = useApp();
   const { openerImage, openerBio } = useOpenerDraft();
   const profile = useProfileDraft();
   const run = useSession((s) => s.run);
   const crush = useCrushes((s) => s.crushes.find((c) => c.id === s.activeId));
   const ready =
-    mode === "reply" ? draftChat.length > 0 : mode === "opener" ? !!openerImage || !!openerBio.trim() : profile.images.length > 0 || !!profile.bio.trim();
+    mode === "reply" ? draftChat.length > 0 || !!replyDraft.trim() : mode === "opener" ? !!openerImage || !!openerBio.trim() : profile.images.length > 0 || !!profile.bio.trim();
 
   const go = () => {
     if (mode === "reply") {
@@ -320,6 +351,7 @@ function Footer({ mode }: { mode: Mode }) {
           theirName: crush?.name ?? theirName,
           notes: crush?.notes || undefined,
           memory: crush?.facts.length ? crush.facts : undefined,
+          draft: replyDraft.trim() || undefined,
           prefs,
         },
       });
@@ -333,7 +365,7 @@ function Footer({ mode }: { mode: Mode }) {
 
   return (
     <Button
-      title={mode === "reply" ? "Get replies" : mode === "opener" ? "Write openers" : "Review my profile"}
+      title={mode === "reply" ? (replyDraft.trim() && !draftChat.length ? "Polish my message" : "Get replies") : mode === "opener" ? "Write openers" : "Review my profile"}
       icon="sparkles"
       disabled={!ready}
       onPress={go}
@@ -371,8 +403,9 @@ function Banner({ icon, title, body, to }: { icon: "keypad" | "radio-button-on";
 const styles = StyleSheet.create({
   topBar: { flexDirection: "row", alignItems: "flex-start", gap: space(3), paddingTop: space(2), marginBottom: space(5) },
   credits: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space(3), height: 34, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, marginTop: 4 },
-  drop: { alignItems: "center", justifyContent: "center", paddingVertical: space(8), borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.borderStrong, backgroundColor: colors.surface },
-  dropIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginBottom: space(3) },
+  drop: { alignItems: "flex-start", justifyContent: "center", padding: space(6), minHeight: 250, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  dropAction: { flexDirection: "row", alignItems: "center", gap: space(2), marginTop: space(6), paddingHorizontal: space(4), height: 48, borderRadius: radius.pill, backgroundColor: colors.accent },
+  dropIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginBottom: space(3) },
   orRow: { flexDirection: "row", alignItems: "center", gap: space(3), marginVertical: space(4) },
   orLine: { flex: 1, height: 1, backgroundColor: colors.border },
   previewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: space(2), paddingLeft: space(1) },
@@ -381,4 +414,5 @@ const styles = StyleSheet.create({
   photoRemove: { position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   roastRow: { flexDirection: "row", alignItems: "center", gap: space(3), marginTop: space(4), padding: space(4), borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   live: { flexDirection: "row", alignItems: "center", gap: space(3), marginTop: space(5) },
+  draftToggle: { flexDirection: "row", alignItems: "center", gap: space(3), padding: space(3), borderRadius: radius.md, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
 });

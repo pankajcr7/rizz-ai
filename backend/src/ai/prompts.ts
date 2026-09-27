@@ -162,6 +162,19 @@ function prefsBlock(prefs: Preferences): string {
     `Boldness: ${prefs.boldness}/5 — ${BOLDNESS_HINT[prefs.boldness - 1]}`,
   ];
   if (prefs.aboutMe) lines.push(`About the user (in their words): ${redact(prefs.aboutMe)}`);
+  if (prefs.styleExamples?.length) {
+    lines.push(`Examples of how the user actually texts — imitate the style, never the facts:\n<style_examples>\n${prefs.styleExamples.map((m) => `- ${redact(m)}`).join("\n")}\n</style_examples>`);
+  }
+  if (prefs.styleAvoid?.length) {
+    const avoid = {
+      too_cheesy: "cheesy lines, grand flirting and pickup-line language",
+      too_formal: "formal or polished wording that sounds unlike a normal text",
+      too_flirty: "unnecessary flirting or escalating the vibe",
+      too_long: "long or padded replies",
+      missed_point: "replying around the message instead of answering its main point",
+    } as const;
+    lines.push(`User feedback from earlier suggestions — actively avoid: ${prefs.styleAvoid.map((x) => avoid[x]).join("; ")}.`);
+  }
   return lines.join("\n");
 }
 
@@ -190,7 +203,7 @@ export function buildSuggestPrompt(req: SuggestRequestParsed, forcedFlag: Safety
       : "No chat transcript was provided — the user only wants their draft improved. Keep the vibe read neutral (interest 50) and say it's based on the draft alone.",
   );
   if (req.draft) parts.push(`The user's draft reply to improve:\n<draft>\n${redact(req.draft)}\n</draft>`);
-  parts.push(`Write ${req.count} alternative everyday texts, with the simplest natural reply first. Respond to the latest message above before considering tone or goal. Do not force flirting, a joke, a question or an old callback. Use only supplied personal facts; if an answer needs a missing fact, use a short [fill-in] and explain it in coachTip. Preserve any draft's intent and uncertainty. Check all alternatives for these requirements. Coaching must not invent timing or feelings; memory is only explicit lasting facts about THEM, not texting behavior or today's mood.`);
+  parts.push(`Write ${req.count} alternative everyday texts, with the simplest natural reply first. Respond to the latest message above before considering tone or goal. Do not force flirting, a joke, a question or an old callback. Use only supplied personal facts. If a direct answer needs a personal fact you do not know, set missingInfo.prompt to a short question asking the user for that fact and use a clear [fill-in] rather than inventing it. Otherwise omit missingInfo. Preserve any draft's intent and uncertainty. Check all alternatives for these requirements. Coaching must not invent timing or feelings; memory is only explicit lasting facts about THEM, not texting behavior or today's mood. Also set nextMove: reply when a response is useful now, wait when the user's message is already last or giving space is better, and end when the conversation should stop because of a clear boundary. nextMove.reason must cite the visible conversation in plain language, without pretending to know reply timing.`);
   if (forcedFlag === "not_interested") {
     parts.push(
       "Safety note from the app: the other person has said they are not interested or asked the user to stop. Set the safety flag to not_interested and only offer graceful exits.",

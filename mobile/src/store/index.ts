@@ -50,6 +50,8 @@ interface State {
   city: string;
   /** Draft chat on the Reply screen, so switching tabs doesn't lose it. */
   draftChat: ChatMessage[];
+  /** Optional rough message the user wants polished. */
+  replyDraft: string;
   chats: Record<ChatMode, ChatItem[]>;
   persona: PersonaId;
   chatMode: ChatMode;
@@ -72,6 +74,8 @@ interface State {
   /** Fetch plan + referral info from the server. */
   refreshMe: () => Promise<void>;
   setDraftChat: (m: ChatMessage[]) => void;
+  setReplyDraft: (v: string) => void;
+  addStyleFeedback: (v: NonNullable<Preferences["styleAvoid"]>[number]) => void;
   setChat: (mode: ChatMode, items: ChatItem[]) => void;
   setPersona: (p: PersonaId) => void;
   setChatMode: (m: ChatMode) => void;
@@ -93,6 +97,7 @@ const initial = {
   features: { voice: false },
   city: "",
   draftChat: [] as ChatMessage[],
+  replyDraft: "",
   chats: { coach: [], practice: [] } as Record<ChatMode, ChatItem[]>,
   persona: "friendly" as PersonaId,
   chatMode: "coach" as ChatMode,
@@ -136,6 +141,14 @@ export const useApp = create<State>()(
         }
       },
       setDraftChat: (draftChat) => set({ draftChat }),
+      setReplyDraft: (replyDraft) => set({ replyDraft }),
+      addStyleFeedback: (v) =>
+        set((s) => ({
+          prefs: {
+            ...s.prefs,
+            styleAvoid: [...new Set([...(s.prefs.styleAvoid ?? []), v])].slice(-5) as NonNullable<Preferences["styleAvoid"]>,
+          },
+        })),
       // Keep the last 60 items per mode; the API only needs the recent context.
       setChat: (mode, items) => set((s) => ({ chats: { ...s.chats, [mode]: items.slice(-60) } })),
       setPersona: (persona) => set({ persona }),
@@ -147,8 +160,8 @@ export const useApp = create<State>()(
     }),
     {
       name: "rizz-app",
-      version: 3,
-      // Fill in fields added after v1 for existing installs (v2: chat mode, v3: boldness + vibe memory).
+      version: 4,
+      // Fill in fields added after earlier versions, including reply draft + learned style feedback.
       migrate: (persisted) => {
         const state = persisted as Partial<State>;
         return { ...initial, ...state, prefs: { ...initial.prefs, ...state.prefs } } as State;

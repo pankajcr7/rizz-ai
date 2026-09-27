@@ -1,71 +1,39 @@
-import { useEffect, useState } from "react";
-import { Animated, Easing, View } from "react-native";
-import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
+import { StyleSheet, View } from "react-native";
 import type { SuggestResponse } from "@rizz/shared";
 import { colors, radius, space } from "../theme";
 import { T } from "./ui";
 
-const W = 220;
-const STROKE = 16;
-const R = (W - STROKE) / 2;
-const CX = W / 2;
-const CY = R + STROKE / 2;
-const ARC = `M ${STROKE / 2} ${CY} A ${R} ${R} 0 0 1 ${W - STROKE / 2} ${CY}`;
-const LEN = Math.PI * R;
+const readLabel = (n: number) => (n >= 75 ? "warm" : n >= 55 ? "opening" : n >= 35 ? "mixed" : "cold");
+const readColor = (n: number) => (n >= 55 ? colors.success : n >= 35 ? colors.warn : colors.danger);
 
-const verdict = (n: number) => (n >= 75 ? "Into you 🔥" : n >= 55 ? "Warming up" : n >= 35 ? "Neutral" : "Cold");
-const verdictColor = (n: number) => (n >= 55 ? colors.success : n >= 35 ? colors.warn : colors.danger);
-
-/** Semicircle interest gauge; fills from 0 to the value over ~800ms. */
+/** Quiet, editorial readout: the signal matters more than decorative AI chrome. */
 export function VibeGauge({ vibe }: { vibe: SuggestResponse["vibe"] }) {
-  const [anim] = useState(() => new Animated.Value(0));
-  const [shown, setShown] = useState(0);
-
-  useEffect(() => {
-    anim.setValue(0);
-    const id = anim.addListener(({ value }) => setShown(value));
-    Animated.timing(anim, { toValue: vibe.interest, duration: 850, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-    return () => anim.removeListener(id);
-  }, [vibe.interest, anim]);
-
-  const angle = Math.PI * (1 - shown / 100);
-  const knob = { x: CX + R * Math.cos(angle), y: CY - R * Math.sin(angle) };
-
+  const pct = Math.max(0, Math.min(100, vibe.interest));
   return (
-    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: space(4), alignItems: "center" }}>
-      <T v="caption" color={colors.textMute} style={{ alignSelf: "flex-start", marginBottom: space(2) }}>
-        Vibe check
-      </T>
-      <View style={{ width: W, height: CY + 6 }} accessibilityLabel={`Interest ${vibe.interest} percent, ${verdict(vibe.interest)}`}>
-        <Svg width={W} height={CY + 6}>
-          <Defs>
-            <LinearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-              <Stop offset="0" stopColor={colors.danger} />
-              <Stop offset="0.5" stopColor={colors.amber} />
-              <Stop offset="1" stopColor={colors.success} />
-            </LinearGradient>
-          </Defs>
-          <Path d={ARC} stroke={colors.surface3} strokeWidth={STROKE} strokeLinecap="round" fill="none" />
-          <Path d={ARC} stroke="url(#g)" strokeWidth={STROKE} strokeLinecap="round" fill="none" strokeDasharray={`${LEN}`} strokeDashoffset={LEN * (1 - shown / 100)} />
-          <Path d={`M ${knob.x} ${knob.y} m -7 0 a 7 7 0 1 0 14 0 a 7 7 0 1 0 -14 0`} fill={colors.text} />
-        </Svg>
-        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, alignItems: "center" }}>
-          <T v="display">{Math.round(shown)}%</T>
+    <View style={styles.card} accessibilityLabel={`Interest ${pct} percent, ${readLabel(pct)}`}>
+      <View style={styles.row}>
+        <View style={{ flex: 1 }}>
+          <T v="caption" color={colors.textMute}>READ</T>
+          <View style={styles.metricRow}>
+            <T style={styles.number}>{pct}%</T>
+            <T v="body" color={colors.textDim}>interest</T>
+          </View>
+        </View>
+        <View style={{ minWidth: 110 }}>
+          <T v="caption" color={colors.textMute}>ENERGY</T>
+          <T v="title" color={readColor(pct)} style={{ marginTop: space(1.5) }}>{readLabel(pct)}</T>
         </View>
       </View>
-      <T v="bodyStrong" color={verdictColor(vibe.interest)} style={{ marginTop: space(1) }}>
-        {verdict(vibe.interest)} · {vibe.mood}
-      </T>
-      <T v="small" color={colors.textDim} style={{ textAlign: "center", marginTop: space(1.5) }}>
-        {vibe.summary}
-      </T>
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${pct}%` }]} />
+        <View style={[styles.knob, { left: `${pct}%` }]} />
+      </View>
+      <T v="body" color={colors.textDim} style={{ marginTop: space(4) }}>{vibe.summary}</T>
       {vibe.signals.length ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space(1.5), justifyContent: "center", marginTop: space(3) }}>
-          {vibe.signals.map((s) => (
-            <View key={s} style={{ backgroundColor: colors.surface2, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1) }}>
-              <T v="small" color={colors.textDim} style={{ fontSize: 12 }}>
-                {s}
-              </T>
+        <View style={styles.signals}>
+          {vibe.signals.slice(0, 3).map((signal) => (
+            <View key={signal} style={styles.signal}>
+              <T v="small" color={colors.textDim}>{signal}</T>
             </View>
           ))}
         </View>
@@ -73,3 +41,15 @@ export function VibeGauge({ vibe }: { vibe: SuggestResponse["vibe"] }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: space(5) },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: space(5) },
+  metricRow: { flexDirection: "row", alignItems: "baseline", gap: space(2), marginTop: space(1) },
+  number: { color: colors.text, fontSize: 38, lineHeight: 46, fontWeight: "600" },
+  track: { height: 8, borderRadius: 4, backgroundColor: colors.surface3, marginTop: space(4), overflow: "visible" },
+  fill: { height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  knob: { position: "absolute", top: -3, width: 14, height: 14, borderRadius: 7, marginLeft: -7, backgroundColor: colors.amber },
+  signals: { flexDirection: "row", flexWrap: "wrap", gap: space(1.5), marginTop: space(3) },
+  signal: { borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1), backgroundColor: colors.surface2 },
+});

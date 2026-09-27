@@ -151,7 +151,7 @@ export function Button({
 }) {
   const off = !!(disabled || loading);
   const height = size === "lg" ? 56 : size === "md" ? 46 : 36;
-  const textColor = variant === "ghost" ? colors.textDim : variant === "danger" ? colors.danger : "#fff";
+  const textColor = variant === "primary" ? colors.bg : variant === "ghost" ? colors.textDim : variant === "danger" ? colors.danger : colors.text;
   const content = (
     <View style={[styles.buttonInner, { height }]}>
       {loading ? (
@@ -186,7 +186,7 @@ export function Button({
       ]}
     >
       {variant === "primary" ? (
-        <LinearGradient colors={[colors.pink, "#FF5470"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+        <LinearGradient colors={[colors.accent, colors.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
           {content}
         </LinearGradient>
       ) : (
@@ -429,21 +429,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", gap: space(3), paddingTop: space(2), paddingBottom: space(5) },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: space(3) },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(4), backgroundColor: "rgba(11,10,15,0.94)", borderTopWidth: 1, borderTopColor: colors.border },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(4), backgroundColor: "rgba(10,10,11,0.96)", borderTopWidth: 1, borderTopColor: colors.border },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: space(4) },
   pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
   buttonInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space(2), paddingHorizontal: space(5) },
   secondary: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
   iconButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space(3.5), height: 38, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  chipOn: { backgroundColor: colors.accentSoft, borderColor: colors.pink },
+  chipOn: { backgroundColor: colors.surface3, borderColor: colors.textDim },
   segmented: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, borderWidth: 1, borderColor: colors.border },
   segment: { flex: 1, flexDirection: "row", gap: 6, height: 38, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
   segmentOn: { backgroundColor: colors.surface3 },
   input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, paddingHorizontal: space(4), paddingVertical: space(3.5), fontSize: 15, fontFamily: font.medium, borderWidth: 1, borderColor: colors.border },
   notice: { flexDirection: "row", gap: space(2.5), borderRadius: radius.md, padding: space(3.5), marginBottom: space(3), alignItems: "flex-start" },
   empty: { alignItems: "center", paddingVertical: space(14), paddingHorizontal: space(6) },
-  emptyIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginBottom: space(4) },
+  emptyIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginBottom: space(4) },
   group: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space(3), paddingHorizontal: space(4), minHeight: 56 },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },

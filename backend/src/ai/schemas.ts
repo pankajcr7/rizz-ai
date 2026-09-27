@@ -29,6 +29,8 @@ export const SuggestOut = z.object({
     .describe("Up to 5 NEW short lasting facts about THEM from this chat (interests, plans, pets' names, inside jokes). Never health, religion, sexuality, address, phone, workplace. Empty if nothing new.")
     // Optional so a model that forgets this field doesn't fail the whole request.
     .optional(),
+  nextMove: z.object({ action: z.enum(["reply", "wait", "end"]), reason: z.string() }).optional(),
+  missingInfo: z.object({ prompt: z.string() }).optional(),
 });
 export const OpenersOut = z.object({ openers: z.array(Suggestion), hooks: z.array(z.string()), safety: Safety });
 export const ChatOut = z.object({

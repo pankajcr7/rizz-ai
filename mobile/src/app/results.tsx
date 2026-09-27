@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import type { ProfileReviewResponse } from "@rizz/shared";
+import type { ChatMessage, ProfileReviewResponse, SuggestResponse } from "@rizz/shared";
 import { ReplyCard } from "../components/ReplyCard";
 import { LoadingLines, Skeleton, SkeletonCard } from "../components/Skeleton";
 import { ToneStrip } from "../components/ToneStrip";
-import { Button, Card, EmptyState, Header, IconButton, Notice, Screen, Section, T } from "../components/ui";
+import { Button, Card, Chip, EmptyState, Header, IconButton, Input, Notice, Screen, Section, T } from "../components/ui";
 import { VibeGauge } from "../components/VibeGauge";
 import { useApp } from "../store";
 import { cancelCrushNudge } from "../lib/nudges";
@@ -20,14 +21,17 @@ const LINES = {
   opener: ["Studying the profile…", "Finding a hook…", "Writing a first line worth answering…"],
   profile: ["Looking at your photos…", "Reading your bio…", "Being honest (but kind)…", "Writing your glow-up plan…"],
 };
-const TITLES = { reply: "Your replies", opener: "Your openers", profile: "Profile review" };
+const TITLES = { reply: "Reply", opener: "Openers", profile: "Profile review" };
 const verdict = (n: number) => (n >= 75 ? "Into you 🔥" : n >= 55 ? "Warming up" : n >= 35 ? "Neutral" : "Cold");
 const score10Color = (n: number) => (n >= 7 ? colors.success : n >= 5 ? colors.warn : colors.danger);
 
 export default function Results() {
-  const { job, status, reply, opener, profile, error, retone, more } = useSession();
-  const { draftChat, setDraftChat, theirName } = useApp();
+  const { job, status, reply, opener, profile, error, retone, more, adjust, learnStyle, fillMissing, continueChat } = useSession();
+  const { setDraftChat, setReplyDraft, theirName } = useApp();
   const openShare = useShare((s) => s.open);
+  const [sentText, setSentText] = useState<string>();
+  const [theirReply, setTheirReply] = useState("");
+  const [missingDetail, setMissingDetail] = useState("");
 
   const back = <IconButton name="chevron-back" label="Back" onPress={() => router.back()} filled style={{ marginLeft: -4 }} />;
 
@@ -42,15 +46,28 @@ export default function Results() {
 
   const kind = job.kind;
   const tone = job.kind === "profile" ? "smooth" : job.req.tone;
+  const needsInfo = kind === "reply" && !!reply && (!!reply.missingInfo || reply.suggestions.some((s) => s.text.includes("[fill-in]")));
 
-  // "Sent it": add the chosen reply to the chat and go back for the next round.
+  // "Sent it": keep the thread here so the user can add the response and continue.
   const onSent = (text: string) => {
-    setDraftChat([...draftChat, { from: "me", text }]);
+    if (job.kind !== "reply") return;
+    const next = [...job.req.messages, { from: "me" as const, text }].slice(-60);
+    setDraftChat(next);
+    setReplyDraft("");
+    setSentText(text);
+    setTheirReply("");
     if (job.kind === "reply" && job.crushId) {
       useCrushes.getState().markReplied(job.crushId, text);
       void cancelCrushNudge(job.crushId);
     }
-    router.back();
+  };
+
+  const onContinue = async () => {
+    if (!sentText || !theirReply.trim()) return;
+    const sent = sentText;
+    setSentText(undefined);
+    setTheirReply("");
+    await continueChat(sent, theirReply);
   };
 
   const share = () => {
@@ -121,6 +138,7 @@ export default function Results() {
       {status === "done" && kind === "reply" && reply ? (
         <View>
           {reply.safety.flag !== "none" ? <Notice text={reply.safety.message} tone="warn" /> : null}
+          <NextMoveCard reply={reply} messages={job.req.messages} />
           <View style={{ marginBottom: space(3) }}>
             <VibeGauge vibe={reply.vibe} />
           </View>
@@ -138,11 +156,55 @@ export default function Results() {
             </Card>
           ) : null}
           <View style={{ height: space(2) }} />
-          <Section title="Reply ideas">
-            {reply.suggestions.map((s, i) => (
-              <ReplyCard key={s.text} text={s.text} why={s.why} tone={tone} onSent={onSent} index={i} />
-            ))}
-          </Section>
+          {needsInfo ? (
+            <Card style={{ marginBottom: space(4), borderColor: colors.warn }}>
+              <T v="bodyStrong">One detail is missing</T>
+              <T v="small" color={colors.textDim} style={{ marginTop: space(1), marginBottom: space(3) }}>
+                {reply.missingInfo?.prompt || "Add the personal detail needed to answer them. Rizz AI won’t invent it."}
+              </T>
+              <Input value={missingDetail} onChangeText={setMissingDetail} placeholder="Type the real detail…" maxLength={300} />
+              <Button title="Use this detail" icon="sparkles" size="md" disabled={!missingDetail.trim()} onPress={() => void fillMissing(missingDetail)} style={{ marginTop: space(2) }} />
+            </Card>
+          ) : (
+            <>
+              <Section title="Three ways to say it">
+                {reply.suggestions.map((s, i) => (
+                  <ReplyCard key={s.text} text={s.text} why={s.why} tone={tone} onSent={onSent} index={i} />
+                ))}
+              </Section>
+              <Section title="Adjust this reply">
+                <View style={styles.wrap}>
+                  <Chip label="Shorter" icon="contract-outline" onPress={() => void adjust("shorter")} />
+                  <Chip label="Less flirty" icon="remove-circle-outline" onPress={() => void adjust("less_flirty")} />
+                  <Chip label="More casual" icon="chatbubble-outline" onPress={() => void adjust("more_casual")} />
+                  <Chip label="More Hindi" icon="language-outline" onPress={() => void adjust("more_hindi")} />
+                </View>
+              </Section>
+              <Section title="Not your style? Teach it">
+                <View style={styles.wrap}>
+                  <Chip label="Too cheesy" onPress={() => void learnStyle("too_cheesy")} />
+                  <Chip label="Too formal" onPress={() => void learnStyle("too_formal")} />
+                  <Chip label="Too flirty" onPress={() => void learnStyle("too_flirty")} />
+                  <Chip label="Too long" onPress={() => void learnStyle("too_long")} />
+                  <Chip label="Missed the point" onPress={() => void learnStyle("missed_point")} />
+                </View>
+                <T v="small" color={colors.textMute} style={{ marginTop: space(2) }}>
+                  Your choice is remembered on this phone and used on future replies.
+                </T>
+              </Section>
+            </>
+          )}
+          {sentText ? (
+            <Card style={{ marginBottom: space(4), borderColor: colors.success }}>
+              <T v="caption" color={colors.success}>SENT</T>
+              <T v="bodyStrong" style={{ marginTop: space(1) }}>{sentText}</T>
+              <T v="small" color={colors.textDim} style={{ marginTop: space(4), marginBottom: space(2) }}>
+                They replied? Add it here and keep going with the same conversation.
+              </T>
+              <Input multiline value={theirReply} onChangeText={setTheirReply} placeholder="Paste or type their reply…" maxLength={1000} style={{ minHeight: 82 }} />
+              <Button title="Continue conversation" icon="arrow-forward" size="md" disabled={!theirReply.trim()} onPress={() => void onContinue()} style={{ marginTop: space(2) }} />
+            </Card>
+          ) : null}
           {reply.coachTip ? <Notice text={reply.coachTip} tone="info" icon="bulb-outline" /> : null}
         </View>
       ) : null}
@@ -176,6 +238,28 @@ export default function Results() {
   );
 }
 
+function NextMoveCard({ reply, messages }: { reply: SuggestResponse; messages: ChatMessage[] }) {
+  if (reply.missingInfo || reply.suggestions.some((s) => s.text.includes("[fill-in]"))) {
+    return <Notice text={`Add one detail first — ${reply.missingInfo?.prompt || "Rizz AI needs a personal fact before it can write a safe answer."}`} tone="info" icon="help-circle-outline" />;
+  }
+  const last = messages.at(-1);
+  const fallback =
+    reply.safety.flag === "not_interested" || reply.safety.flag === "uncomfortable"
+      ? { action: "end" as const, reason: "They set a boundary, so the useful move is to stop here." }
+      : last?.from === "me"
+        ? { action: "wait" as const, reason: "Your message is already the latest one in the chat." }
+        : { action: "reply" as const, reason: "Their message is the latest one, so a natural reply makes sense." };
+  const move = reply.nextMove ?? fallback;
+  const config = {
+    reply: { title: "Reply", icon: "chatbubble-ellipses-outline" as const, tone: "success" as const },
+    wait: { title: "Give it space", icon: "time-outline" as const, tone: "info" as const },
+    end: { title: "Stop here", icon: "hand-left-outline" as const, tone: "warn" as const },
+  }[move.action];
+  return (
+    <Notice text={`${config.title} — ${move.reason}`} tone={config.tone} icon={config.icon} />
+  );
+}
+
 function GhostCard({ ghost }: { ghost: { risk: number; reason: string; fix: string } }) {
   const c = ghost.risk >= 60 ? colors.danger : ghost.risk >= 35 ? colors.warn : colors.success;
   const label = ghost.risk >= 60 ? "High" : ghost.risk >= 35 ? "Medium" : "Low";
@@ -185,7 +269,7 @@ function GhostCard({ ghost }: { ghost: { risk: number; reason: string; fix: stri
         <T style={{ fontSize: 26 }}>👻</T>
         <View style={{ flex: 1 }}>
           <T v="bodyStrong">
-            Ghost risk: <T v="bodyStrong" color={c}>{label} · {ghost.risk}%</T>
+            Conversation risk: <T v="bodyStrong" color={c}>{label}</T>
           </T>
           <T v="small" color={colors.textDim}>
             {ghost.reason}

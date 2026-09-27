@@ -11,7 +11,7 @@ import { PRACTICE_PERSONAS, type PersonaId } from "@rizz/shared";
 import { api, errorMessage, RizzApiError } from "../../api/client";
 import { Sheet } from "../../components/Sheet";
 import { toast } from "../../components/Toast";
-import { Button, ChipRow, IconButton, Notice, Section, Segmented, T } from "../../components/ui";
+import { Button, ChipRow, IconButton, Notice, Section, T } from "../../components/ui";
 import { LANGUAGES } from "../../components/Vibe";
 import { useApp, type ChatItem, type ChatMode } from "../../store";
 import { readBase64, recordingMime, speak, stopSpeaking } from "../../lib/voice";
@@ -147,23 +147,30 @@ export default function ChatScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={70}>
         {/* Header */}
         <View style={styles.header}>
-          <Segmented
-            options={[
-              { id: "coach" as ChatMode, label: "Wingman", icon: "sparkles-outline" },
-              { id: "practice" as ChatMode, label: "Practice", icon: "game-controller-outline" },
-            ]}
-            value={mode}
-            onChange={(m) => {
-              setMode(m);
+          <View style={{ flex: 1 }}>
+            <T v="title">{mode === "coach" ? "Wingman" : "Practice"}</T>
+            <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
+              {mode === "coach" ? "Coach, not autopilot." : "Practice without the pressure."}
+            </T>
+          </View>
+          <Pressable
+            onPress={() => {
+              setMode(mode === "coach" ? "practice" : "coach");
               setError(undefined);
             }}
-            style={{ flex: 1 }}
-          />
+            style={styles.modePill}
+            accessibilityRole="button"
+            accessibilityLabel={mode === "coach" ? "Switch to practice mode" : "Switch to wingman mode"}
+          >
+            <T v="small" color={colors.info} style={{ fontFamily: font.semibold }}>
+              {mode === "coach" ? "coach mode" : "practice"}
+            </T>
+          </Pressable>
           {features.voice ? (
             <IconButton
               name={speakReplies ? "volume-high" : "volume-mute-outline"}
               label={speakReplies ? "Stop reading replies aloud" : "Read replies aloud"}
-              color={speakReplies ? colors.pink : colors.textDim}
+              color={speakReplies ? colors.info : colors.textDim}
               onPress={() => {
                 if (speakReplies) stopSpeaking();
                 setSpeakReplies(!speakReplies);
@@ -220,7 +227,7 @@ export default function ChatScreen() {
             return (
               <View key={i} style={{ marginBottom: space(2) }}>
                 <Pressable onLongPress={() => copy(m.content)} accessibilityHint="Long-press to copy" style={[styles.bubble, mine ? styles.me : styles.them]}>
-                  <T v="body" color={mine ? "#fff" : colors.text} selectable>
+                  <T v="body" color={mine ? colors.bg : colors.text} selectable>
                     {m.content}
                   </T>
                 </Pressable>
@@ -308,8 +315,8 @@ export default function ChatScreen() {
             </Pressable>
           ) : (
             <Pressable onPress={() => send(input)} disabled={!input.trim() || sending} accessibilityLabel="Send" style={({ pressed }) => [pressed && { transform: [{ scale: 0.92 }] }, (!input.trim() || sending) && { opacity: 0.35 }]}>
-              <LinearGradient colors={gradient.brand} start={gradient.start} end={gradient.end} style={styles.send}>
-                <Ionicons name="arrow-up" size={20} color="#fff" />
+              <LinearGradient colors={[colors.info, colors.info]} start={gradient.start} end={gradient.end} style={styles.send}>
+                <Ionicons name="arrow-up" size={20} color={colors.bg} />
               </LinearGradient>
             </Pressable>
           )}
@@ -337,20 +344,21 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: space(2), paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(2) },
+  header: { flexDirection: "row", alignItems: "center", gap: space(2), paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(4) },
+  modePill: { height: 38, paddingHorizontal: space(3.5), borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   match: { flexDirection: "row", alignItems: "center", gap: space(3), marginHorizontal: GUTTER, marginTop: space(1), padding: space(3), borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   scorePill: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1) },
   heroIcon: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginBottom: space(4) },
   bubble: { maxWidth: "84%", paddingHorizontal: space(3.5), paddingVertical: space(2.5), borderRadius: radius.lg },
-  me: { alignSelf: "flex-end", backgroundColor: colors.meBubble, borderBottomRightRadius: 6 },
-  them: { alignSelf: "flex-start", backgroundColor: colors.themBubble, borderBottomLeftRadius: 6 },
+  me: { alignSelf: "flex-end", backgroundColor: colors.meBubble, borderBottomRightRadius: 8 },
+  them: { alignSelf: "flex-start", backgroundColor: colors.themBubble, borderBottomLeftRadius: 8 },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: space(1.5), borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: 3 },
   feedback: { maxWidth: "84%", marginTop: space(2), padding: space(3), borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, gap: space(2) },
   better: { flexDirection: "row", gap: space(2), alignItems: "flex-start", backgroundColor: colors.infoSoft, borderRadius: radius.sm, padding: space(2.5) },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textDim },
   suggestion: { paddingHorizontal: space(3.5), paddingVertical: space(2.5), borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: space(2), paddingHorizontal: GUTTER, paddingVertical: space(3), borderTopWidth: 1, borderTopColor: colors.border },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: space(2), paddingHorizontal: GUTTER, paddingVertical: space(3), borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
   input: { flex: 1, backgroundColor: colors.surface, color: colors.text, borderRadius: 22, borderWidth: 1, borderColor: colors.border, paddingHorizontal: space(4), paddingTop: space(3), paddingBottom: space(3), fontSize: 15, fontFamily: font.medium, minHeight: 46, maxHeight: 120 },
   send: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
 });
