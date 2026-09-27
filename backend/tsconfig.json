@@ -10,5 +10,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "test", "../shared"]
+  "include": ["src", "test", "eval", "../shared"]
 }
