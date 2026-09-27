@@ -6,7 +6,16 @@ module.exports = ({ config }) => {
     ...config,
     plugins: [
       ...(config.plugins ?? []),
-      ["expo-build-properties", { android: { usesCleartextTraffic: !isProduction } }],
+      [
+        "expo-build-properties",
+        {
+          android: {
+            usesCleartextTraffic: !isProduction,
+            // Real phones are ARM; dropping x86/x86_64 (emulator-only) cuts the APK size by ~40%.
+            buildArchs: ["armeabi-v7a", "arm64-v8a"],
+          },
+        },
+      ],
     ],
   };
 };
