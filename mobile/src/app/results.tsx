@@ -20,7 +20,7 @@ const LINES = {
   opener: ["Studying the profile…", "Finding a hook…", "Writing a first line worth answering…"],
   profile: ["Looking at your photos…", "Reading your bio…", "Being honest (but kind)…", "Writing your glow-up plan…"],
 };
-const TITLES = { reply: "Your replies", opener: "Your openers", profile: "Profile review" };
+const TITLES = { reply: "Reply", opener: "Openers", profile: "Profile review" };
 const verdict = (n: number) => (n >= 75 ? "Into you 🔥" : n >= 55 ? "Warming up" : n >= 35 ? "Neutral" : "Cold");
 const score10Color = (n: number) => (n >= 7 ? colors.success : n >= 5 ? colors.warn : colors.danger);
 
@@ -138,7 +138,7 @@ export default function Results() {
             </Card>
           ) : null}
           <View style={{ height: space(2) }} />
-          <Section title="Reply ideas">
+          <Section title="Three ways to say it">
             {reply.suggestions.map((s, i) => (
               <ReplyCard key={s.text} text={s.text} why={s.why} tone={tone} onSent={onSent} index={i} />
             ))}

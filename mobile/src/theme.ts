@@ -1,58 +1,52 @@
 /**
- * Design tokens. Everything visual (colours, type, spacing, radii, shadows)
- * comes from here so the whole app stays consistent.
+ * Rizz visual system: restrained, editorial, product-first.
+ * One coral action colour, warm type, neutral dark surfaces, violet only for coaching.
  */
 import { Platform } from "react-native";
 
 export const colors = {
-  // Surfaces — a deep, slightly warm night palette (not pure black: easier on the eyes, and depth reads better)
-  bg: "#0B0A0F",
-  surface: "#15131C",
-  surface2: "#1E1B28",
-  surface3: "#272335",
-  border: "#2A2636",
-  borderStrong: "#3A3549",
+  bg: "#0A0A0B",
+  surface: "#141416",
+  surface2: "#1B1B1E",
+  surface3: "#222226",
+  border: "#2C2C30",
+  borderStrong: "#3A3A40",
 
-  // Text
-  text: "#F5F3F7",
-  textDim: "#A8A3B5",
-  textMute: "#6E6880",
+  text: "#F3EFE8",
+  textDim: "#9A999E",
+  textMute: "#6F6E73",
 
-  // Brand — one hot pink for actions; the warm gradient is for hero moments only
-  pink: "#FF3D7F",
-  accent: "#FF3D7F",
-  accentSoft: "rgba(255,61,127,0.12)",
-  coral: "#FF7A59",
-  amber: "#FFB547",
-  /** Only for coach tips / "the AI is teaching you" moments. */
-  info: "#8B7CFF",
-  infoSoft: "rgba(139,124,255,0.12)",
+  // Coral is the only primary action colour. Keep it rare so actions read instantly.
+  pink: "#FF6B5E",
+  accent: "#FF6B5E",
+  accentSoft: "rgba(255,107,94,0.12)",
+  coral: "#FF6B5E",
+  amber: "#EEDFCC",
+  info: "#8B80FF",
+  infoSoft: "rgba(139,128,255,0.12)",
 
-  // Semantic
-  success: "#34D399",
-  successSoft: "rgba(52,211,153,0.12)",
-  warn: "#FBBF24",
-  danger: "#F43F5E",
-  dangerBg: "rgba(244,63,94,0.12)",
+  success: "#83C99C",
+  successSoft: "rgba(131,201,156,0.12)",
+  warn: "#E9C36A",
+  danger: "#F26A72",
+  dangerBg: "rgba(242,106,114,0.12)",
 
-  // Chat
-  meBubble: "#FF3D7F",
-  themBubble: "#221F2D",
+  meBubble: "#EEDFCC",
+  themBubble: "#222226",
 
-  // Aliases
-  purple: "#8B7CFF",
-  gold: "#FFB547",
+  purple: "#8B80FF",
+  gold: "#EEDFCC",
 };
 
-/** Warm brand gradient (135°): hot pink → coral → amber. Hero, meter, paywall only. */
+// Kept for components that use LinearGradient, but deliberately almost-flat.
 export const gradient = {
-  brand: ["#FF3D7F", "#FF7A59", "#FFB547"] as const,
-  brandSoft: ["rgba(255,61,127,0.18)", "rgba(255,122,89,0.14)", "rgba(255,181,71,0.10)"] as const,
+  brand: ["#FF6B5E", "#FF7468"] as const,
+  brandSoft: ["rgba(255,107,94,0.14)", "rgba(238,223,204,0.08)"] as const,
   start: { x: 0, y: 0 },
   end: { x: 1, y: 1 },
 };
 
-export const radius = { xs: 8, sm: 12, md: 16, lg: 20, xl: 28, pill: 999 };
+export const radius = { xs: 8, sm: 12, md: 16, lg: 22, xl: 30, pill: 999 };
 export const space = (n: number) => n * 4;
 
 export const font = {
@@ -64,21 +58,20 @@ export const font = {
 };
 
 export const type = {
-  display: { fontFamily: font.extrabold, fontSize: 32, lineHeight: 38, letterSpacing: -0.5 },
-  title: { fontFamily: font.bold, fontSize: 22, lineHeight: 28, letterSpacing: -0.3 },
-  headline: { fontFamily: font.semibold, fontSize: 17, lineHeight: 22 },
+  display: { fontFamily: font.semibold, fontSize: 34, lineHeight: 41, letterSpacing: -0.7 },
+  title: { fontFamily: font.semibold, fontSize: 23, lineHeight: 30, letterSpacing: -0.35 },
+  headline: { fontFamily: font.semibold, fontSize: 17, lineHeight: 23 },
   body: { fontFamily: font.medium, fontSize: 15, lineHeight: 22 },
   bodyStrong: { fontFamily: font.semibold, fontSize: 15, lineHeight: 22 },
   reply: { fontFamily: font.semibold, fontSize: 16, lineHeight: 24 },
   small: { fontFamily: font.medium, fontSize: 13, lineHeight: 18 },
-  caption: { fontFamily: font.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 0.6, textTransform: "uppercase" as const },
+  caption: { fontFamily: font.semibold, fontSize: 12, lineHeight: 16, letterSpacing: 1.1, textTransform: "uppercase" as const },
 };
 
-/** Screen gutter. */
 export const GUTTER = 20;
 
-/** Glow is reserved for the primary CTA and the selected reply card — no drop shadows elsewhere. */
+// A restrained lift rather than a neon glow.
 export const glow = Platform.select({
-  web: { boxShadow: "0 6px 24px rgba(255,61,127,0.45)" } as object,
-  default: { shadowColor: "#FF3D7F", shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+  web: { boxShadow: "0 8px 24px rgba(0,0,0,0.24)" } as object,
+  default: { shadowColor: "#000000", shadowOpacity: 0.22, shadowRadius: 10, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
 });

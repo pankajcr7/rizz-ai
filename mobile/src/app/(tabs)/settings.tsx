@@ -106,7 +106,7 @@ export default function Me() {
 
   return (
     <Screen>
-      <Header title="Me" />
+      <Header title="You" subtitle="Your edge, in one place." />
 
       {/* Plan */}
       {pro ? (
@@ -221,7 +221,7 @@ export default function Me() {
       </Section>
 
       {RizzOverlay.available ? (
-        <Section title="Reply anywhere">
+        <Section title="Live tools">
           <ListGroup>
             <ListRow icon="keypad-outline" title="Rizz Keyboard" value={RizzOverlay.keyboard.isSelected() ? "On" : RizzOverlay.keyboard.isEnabled() ? "Enabled" : "Set up"} onPress={() => router.push("/keyboard")} />
             <ListRow icon="notifications-outline" title="Smart notifications" value={RizzOverlay.smart.hasAccess() ? "On" : "Set up"} onPress={() => router.push("/notifications")} />

@@ -57,11 +57,12 @@ function TopBar() {
   return (
     <View style={styles.topBar}>
       <View style={{ flex: 1 }}>
-        <T v="small" color={colors.textDim}>
-          Hey 👋
-        </T>
-        <T v="display" style={{ marginTop: 2 }}>
+        <T v="caption" color={colors.text}>RIZZ</T>
+        <T v="display" style={{ marginTop: space(3) }}>
           What did they say?
+        </T>
+        <T v="body" color={colors.textDim} style={{ marginTop: space(2) }}>
+          Drop the chat. Keep your voice.
         </T>
       </View>
       <Pressable onPress={() => router.push("/progress")} style={[styles.credits, { marginRight: space(2) }]} accessibilityLabel={`${streak} day streak. Open progress.`}>
@@ -155,13 +156,15 @@ function ReplyInput() {
     <View>
       {error ? <Notice text={error} /> : null}
       <Pressable onPress={scan} disabled={scanning} style={({ pressed }) => [styles.drop, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="Upload a chat screenshot">
-        <View style={styles.dropIcon}>
-          <Ionicons name={scanning ? "hourglass-outline" : "image-outline"} size={26} color={colors.pink} />
-        </View>
-        <T v="headline">{scanning ? "Reading the screenshot…" : "Upload a screenshot"}</T>
-        <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
-          Instagram, Tinder, Snapchat, WhatsApp…
+        <T v="caption" color={colors.textMute}>NEW REPLY</T>
+        <T v="title" style={{ marginTop: space(2) }}>{scanning ? "Reading the screenshot…" : "Start with the conversation"}</T>
+        <T v="body" color={colors.textDim} style={{ marginTop: space(2) }}>
+          Screenshot, paste, or type a few messages.
         </T>
+        <View style={styles.dropAction}>
+          <Ionicons name={scanning ? "hourglass-outline" : "image-outline"} size={19} color={colors.bg} />
+          <T v="bodyStrong" color={colors.bg}>{scanning ? "Reading…" : "Add screenshot"}</T>
+        </View>
       </Pressable>
 
       <View style={styles.orRow}>
@@ -371,8 +374,9 @@ function Banner({ icon, title, body, to }: { icon: "keypad" | "radio-button-on";
 const styles = StyleSheet.create({
   topBar: { flexDirection: "row", alignItems: "flex-start", gap: space(3), paddingTop: space(2), marginBottom: space(5) },
   credits: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space(3), height: 34, borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, marginTop: 4 },
-  drop: { alignItems: "center", justifyContent: "center", paddingVertical: space(8), borderRadius: radius.lg, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.borderStrong, backgroundColor: colors.surface },
-  dropIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginBottom: space(3) },
+  drop: { alignItems: "flex-start", justifyContent: "center", padding: space(6), minHeight: 250, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  dropAction: { flexDirection: "row", alignItems: "center", gap: space(2), marginTop: space(6), paddingHorizontal: space(4), height: 48, borderRadius: radius.pill, backgroundColor: colors.accent },
+  dropIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center", marginBottom: space(3) },
   orRow: { flexDirection: "row", alignItems: "center", gap: space(3), marginVertical: space(4) },
   orLine: { flex: 1, height: 1, backgroundColor: colors.border },
   previewHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: space(2), paddingLeft: space(1) },
