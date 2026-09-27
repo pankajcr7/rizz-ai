@@ -34,5 +34,6 @@
       </intent-filter>
     </service>
     <receiver android:name="expo.modules.rizzoverlay.SmartNotifyReceiver" android:exported="false" />
+    <activity android:name="expo.modules.rizzoverlay.SmartOpenChatActivity" android:exported="false" android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
   </application>
 </manifest>

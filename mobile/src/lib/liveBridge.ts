@@ -60,7 +60,7 @@ async function run(tone: ToneId) {
   currentTone = tone;
   const { prefs, addHistory, setQuota } = useApp.getState();
   const crushes = useCrushes.getState();
-  const crush = chat.theirName ? crushes.findByName(chat.theirName) : undefined;
+  const crush = chat.theirName ? crushes.findByName(chat.theirName, chat.platform) : undefined;
   const messages = chat.messages.slice(-RECENT);
   const earlier = chat.messages.slice(0, -RECENT).slice(-MAX_EARLIER);
 
@@ -99,7 +99,7 @@ async function run(tone: ToneId) {
       vibe: result.vibe,
     });
     if (crush) {
-      crushes.recordSession(crush.id, { chat: messages, interest: result.vibe.interest, ghost: result.vibe.ghost?.risk, memory: result.memory });
+      crushes.recordSession(crush.id, { chat: chat.messages, interest: result.vibe.interest, ghost: result.vibe.ghost?.risk, memory: result.memory });
     }
     api.me().then((r) => setQuota(r.quota)).catch(() => {});
   } catch (e) {
@@ -161,11 +161,24 @@ export function startLiveBridge(): () => void {
   const subs = [
     RizzOverlay.onCapture((captured) => {
       lastChat = toLiveChat(captured);
+      const target = RizzOverlay.smart.captureTarget();
+      if (target && (!lastChat.theirName || lastChat.theirName.trim().toLowerCase() === target.name.trim().toLowerCase())) {
+        lastChat = { ...lastChat, theirName: target.name, platform: target.platform as Platform };
+      }
       lastResult = null;
       coachTurns = [];
       if (!lastChat.messages.length) {
         RizzOverlay.showPanel({ state: "error", title: "No chat found here", message: "Open a conversation and try again." });
         return;
+      }
+      // Save the scan before requesting suggestions, including when the network is unavailable.
+      if (lastChat.theirName && lastChat.platform !== "other") {
+        const state = useCrushes.getState();
+        const person = state.findByName(lastChat.theirName, lastChat.platform)
+          ?? state.add(lastChat.theirName, lastChat.platform);
+        state.saveChat(person.id, lastChat.messages);
+        RizzOverlay.smart.saveConversation(lastChat.platform, lastChat.theirName, lastChat.messages);
+        lastChat = { ...lastChat, messages: useCrushes.getState().findByName(lastChat.theirName, lastChat.platform)?.chat ?? lastChat.messages };
       }
       void run(useApp.getState().defaultTone);
     }),

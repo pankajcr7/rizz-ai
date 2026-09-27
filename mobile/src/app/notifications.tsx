@@ -78,7 +78,8 @@ export default function SmartNotificationsSetup() {
       <Section title="How it works">
         {[
           ["notifications-outline", "They text you → “✨ Reply to Priya” appears"],
-          ["sparkles-outline", "Tap Get replies → 3 ideas right in the notification"],
+          ["sparkles-outline", "Tap Reply → use saved history, or open the chat to read it once"],
+          ["reader-outline", "With Live mode on, scroll up and tap Done; that chat is saved by name and app"],
           ["send-outline", "Tap Send 1/2/3 → it's sent through the app's own quick reply"],
         ].map(([icon, text]) => (
           <View key={text} style={styles.how}>
@@ -93,7 +94,7 @@ export default function SmartNotificationsSetup() {
       <Notice
         tone="info"
         icon="shield-checkmark-outline"
-        text="Nothing leaves your phone until you tap Get replies — then only that one message is sent (with numbers & emails removed). Nothing is ever sent to the chat unless you tap Send."
+        text="Chats you read are saved on this phone by person and app. When you tap Reply, saved context is sent to make suggestions. Nothing is sent to your chat unless you tap Send."
       />
     </Screen>
   );

@@ -20,6 +20,9 @@ declare class RizzOverlayNative extends NativeModule<RizzOverlayModuleEvents> {
   openNotificationAccessSettings(): void;
   getSmartApps(): string;
   setSmartApps(json: string): void;
+  getSmartCaptureTarget(): string;
+  saveSmartConversation(platform: string, name: string, json: string): void;
+  clearSmartConversations(): void;
 }
 
 // Android-only. On iOS (and in Expo Go) this is null and live mode is hidden.
@@ -48,6 +51,12 @@ export const RizzOverlay = {
     openAccessSettings: () => native?.openNotificationAccessSettings(),
     apps: (): { pkg: string; name: string; enabled: boolean }[] => (native ? JSON.parse(native.getSmartApps()) : []),
     setApps: (pkgs: string[]) => native?.setSmartApps(JSON.stringify(pkgs)),
+    captureTarget: (): { name: string; platform: string } | null => {
+      const raw = native?.getSmartCaptureTarget();
+      return raw ? JSON.parse(raw) : null;
+    },
+    saveConversation: (platform: string, name: string, messages: { from: "me" | "them"; text: string }[]) => native?.saveSmartConversation(platform, name, JSON.stringify(messages)),
+    clearConversations: () => native?.clearSmartConversations(),
   },
 
   onCapture(cb: (chat: CapturedChat) => void) {
