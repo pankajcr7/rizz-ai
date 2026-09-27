@@ -66,6 +66,9 @@ object SmartNotify {
     else -> SUPPORTED[pkg]?.lowercase() ?: "other"
   }
 
+  fun hasContext(ctx: Context, pkg: String, title: String, history: List<SmartConversationHistory.Line>): Boolean =
+    history.isNotEmpty() && (SmartConversationHistory.fullyRead(ctx, pkg, title) || (history.size >= 3 && history.any { it.from == "me" }))
+
   fun enabledApps(ctx: Context): Set<String> =
     ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY_APPS, emptySet()) ?: emptySet()
 
@@ -169,7 +172,7 @@ class RizzNotificationListener : NotificationListenerService() {
     val app = SmartNotify.SUPPORTED[sbn.packageName] ?: "chat"
     val p = SmartNotify.pending[id]!!
     val history = SmartConversationHistory.get(this, p.pkg, p.title)
-    val primary = if (history.size >= 3 && history.any { it.from == "me" })
+    val primary = if (SmartNotify.hasContext(this, p.pkg, p.title, history))
       SmartNotify.action(this, id, SmartNotifyReceiver.ACTION_GET) else SmartNotify.openAction(this, id, p)
     val notification = SmartNotify.builder(this)
       .setSmallIcon(android.R.drawable.ic_menu_edit)
@@ -228,7 +231,7 @@ class SmartNotifyReceiver : BroadcastReceiver() {
       ACTION_GET -> {
         if (p == null) return expired(ctx, id)
         val history = SmartConversationHistory.get(ctx, p.pkg, p.title)
-        if (history.size < 3 || history.none { it.from == "me" }) return openChatForReading(ctx, id, p)
+        if (!SmartNotify.hasContext(ctx, p.pkg, p.title, history)) return openChatForReading(ctx, id, p)
         val cfg = KeyboardConfig.load(ctx)
         if (cfg == null || cfg.token.isBlank()) return status(ctx, id, "Open Rizz AI once to connect smart replies")
         status(ctx, id, "Reading the vibe…", ongoing = true)
