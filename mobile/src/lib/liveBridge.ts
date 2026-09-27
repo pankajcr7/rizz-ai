@@ -162,7 +162,7 @@ export function startLiveBridge(): () => void {
     RizzOverlay.onCapture((captured) => {
       lastChat = toLiveChat(captured);
       const target = RizzOverlay.smart.captureTarget();
-      if (target && (!lastChat.theirName || lastChat.theirName.trim().toLowerCase() === target.name.trim().toLowerCase())) {
+      if (target && (captured.mode === "history" || !lastChat.theirName || lastChat.theirName.trim().toLowerCase() === target.name.trim().toLowerCase())) {
         lastChat = { ...lastChat, theirName: target.name, platform: target.platform as Platform };
       }
       lastResult = null;

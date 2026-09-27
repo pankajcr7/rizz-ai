@@ -323,7 +323,7 @@ class SmartNotifyReceiver : BroadcastReceiver() {
 class SmartOpenChatActivity : Activity() {
   companion object {
     fun open(ctx: Context, id: Int, p: SmartNotify.Pending) {
-      val bubbleReady = BubbleService.instance != null
+      val bubbleReady = BubbleService.instance != null && BubbleService.listener != null
       val opened = runCatching {
         if (p.openChat != null) p.openChat.send()
         else {
