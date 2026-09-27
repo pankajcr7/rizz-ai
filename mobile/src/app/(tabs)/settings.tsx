@@ -87,6 +87,7 @@ export default function Me() {
     const run = async () => {
       await secureStorage.remove("rizz.token");
       resetAll();
+      RizzOverlay.smart.clearConversations();
       useCrushes.setState({ crushes: [], activeId: null });
       useProgress.getState().reset();
       router.replace("/onboarding");

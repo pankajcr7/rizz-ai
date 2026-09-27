@@ -94,7 +94,7 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
         ))}
       </Section>
 
-      <Notice tone="info" icon="shield-checkmark-outline" text="Nothing is recorded. The text is read on your phone, and only the messages (with numbers & emails removed) are sent to write replies." />
+      <Notice tone="info" icon="shield-checkmark-outline" text="Chats you read are saved on this phone by person and app, so future replies can use them. The messages you read are sent to write replies." />
     </Screen>
   );
 }

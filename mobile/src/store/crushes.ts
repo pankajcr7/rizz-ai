@@ -18,7 +18,7 @@ export interface Crush {
   facts: string[];
   notes: string;
   vibe: { at: number; interest: number; ghost?: number }[];
-  /** Last few messages, so you can pick the conversation back up. */
+  /** Saved conversation, so later replies can reuse its context. */
   chat: ChatMessage[];
   lastThem?: string;
   lastAt: number;
@@ -36,7 +36,22 @@ export const CRUSH_COLORS = [
 ] as const;
 
 const MAX_FACTS = 20;
+const MAX_CHAT = 360;
 const uid = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+function mergeChat(old: ChatMessage[], fresh: ChatMessage[]): ChatMessage[] {
+  if (!old.length) return fresh.slice(-MAX_CHAT);
+  if (!fresh.length) return old;
+  const same = (a: ChatMessage, b: ChatMessage) => a.from === b.from && a.text === b.text;
+  const contains = (outer: ChatMessage[], inner: ChatMessage[]) => outer.some((_, at) => inner.every((m, i) => outer[at + i] && same(outer[at + i]!, m)));
+  if (contains(fresh, old)) return fresh.slice(-MAX_CHAT);
+  if (contains(old, fresh)) return old.slice(-MAX_CHAT);
+  for (let n = Math.min(old.length, fresh.length); n > 0; n--) {
+    if (old.slice(-n).every((m, i) => same(m, fresh[i]!))) return [...old, ...fresh.slice(n)].slice(-MAX_CHAT);
+    if (fresh.slice(-n).every((m, i) => same(m, old[i]!))) return [...fresh, ...old.slice(n)].slice(-MAX_CHAT);
+  }
+  return [...old, ...fresh].slice(-MAX_CHAT);
+}
 
 interface CrushState {
   crushes: Crush[];
@@ -46,7 +61,8 @@ interface CrushState {
   remove: (id: string) => void;
   setActive: (id: string | null) => void;
   /** Find by name (case-insensitive), e.g. from a screenshot header. */
-  findByName: (name: string) => Crush | undefined;
+  findByName: (name: string, platform?: Platform) => Crush | undefined;
+  saveChat: (id: string, chat: ChatMessage[]) => void;
   /** Record a finished reply session. */
   recordSession: (id: string, s: { chat: ChatMessage[]; interest: number; ghost?: number; memory: string[] }) => void;
   /** User sent a reply → no longer waiting on you. */
@@ -81,10 +97,20 @@ export const useCrushes = create<CrushState>()(
       update: (id, patch) => set((s) => ({ crushes: s.crushes.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
       remove: (id) => set((s) => ({ crushes: s.crushes.filter((c) => c.id !== id), activeId: s.activeId === id ? null : s.activeId })),
       setActive: (activeId) => set({ activeId }),
-      findByName: (name) => {
+      findByName: (name, platform) => {
         const n = name.trim().toLowerCase();
-        return get().crushes.find((c) => c.name.toLowerCase() === n);
+        const matches = get().crushes.filter((c) => c.name.toLowerCase() === n);
+        return platform ? matches.find((c) => c.platform === platform) : matches.length === 1 ? matches[0] : undefined;
       },
+      saveChat: (id, chat) => set((s) => ({
+        crushes: s.crushes.map((c) => c.id === id ? {
+          ...c,
+          chat: mergeChat(c.chat, chat),
+          lastThem: [...chat].reverse().find((m) => m.from === "them")?.text ?? c.lastThem,
+          lastAt: Date.now(),
+          waiting: chat.at(-1)?.from === "them",
+        } : c),
+      })),
       recordSession: (id, { chat, interest, ghost, memory }) =>
         set((s) => ({
           crushes: s.crushes.map((c) => {
@@ -95,7 +121,7 @@ export const useCrushes = create<CrushState>()(
             return {
               ...c,
               facts,
-              chat: chat.slice(-30),
+              chat: mergeChat(c.chat, chat),
               vibe: [...c.vibe, { at: Date.now(), interest, ghost }].slice(-20),
               lastThem: [...chat].reverse().find((m) => m.from === "them")?.text ?? c.lastThem,
               lastAt: Date.now(),
@@ -105,7 +131,7 @@ export const useCrushes = create<CrushState>()(
         })),
       markReplied: (id, text) =>
         set((s) => ({
-          crushes: s.crushes.map((c) => (c.id === id ? { ...c, waiting: false, lastAt: Date.now(), chat: [...c.chat, { from: "me" as const, text }].slice(-30) } : c)),
+          crushes: s.crushes.map((c) => (c.id === id ? { ...c, waiting: false, lastAt: Date.now(), chat: mergeChat(c.chat, [{ from: "me" as const, text }]) } : c)),
         })),
       removeFact: (id, fact) => set((s) => ({ crushes: s.crushes.map((c) => (c.id === id ? { ...c, facts: c.facts.filter((f) => f !== fact) } : c)) })),
     }),

@@ -158,5 +158,32 @@ class RizzOverlayModule : Module() {
       val arr = org.json.JSONArray(json)
       SmartNotify.setEnabledApps(context, (0 until arr.length()).map { arr.getString(it) }.toSet())
     }
+
+    Function("getSmartCaptureTarget") {
+      SmartNotify.captureTarget?.takeIf { System.currentTimeMillis() - SmartNotify.captureTargetAt < 300_000 }?.let { target ->
+        org.json.JSONObject().put("name", target.title).put("platform", SmartNotify.platform(target.pkg)).toString()
+      } ?: ""
+    }
+
+    /** Save a user-read chat for the same person and social app as future notifications. */
+    Function("saveSmartConversation") { platform: String, name: String, json: String ->
+      val pkg = SmartNotify.SUPPORTED.entries.firstOrNull {
+        it.value.equals(platform, ignoreCase = true) || (platform == "facebook" && it.key == "com.facebook.orca")
+      }?.key ?: SmartNotify.pending.values.map { it.pkg to it.title }
+        .filter { it.second.equals(name, ignoreCase = true) }.map { it.first }.distinct().singleOrNull()
+      if (pkg != null && pkg in SmartNotify.enabledApps(context)) {
+        val arr = org.json.JSONArray(json)
+        val lines = (0 until arr.length()).mapNotNull { i ->
+          val item = arr.optJSONObject(i) ?: return@mapNotNull null
+          val from = item.optString("from")
+          val text = item.optString("text")
+          if (from in setOf("me", "them") && text.isNotBlank()) SmartConversationHistory.Line(from, text) else null
+        }
+        SmartConversationHistory.append(context, pkg, name, lines)
+        SmartNotify.captureTarget = null
+      }
+    }
+
+    Function("clearSmartConversations") { SmartConversationHistory.clear(context) }
   }
 }

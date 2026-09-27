@@ -18,7 +18,7 @@ export async function scanScreenshotToDraft(platformHint?: Platform): Promise<{ 
     app.setDraftChat(messages);
     app.setDraftMeta({ theirName: res.theirName ?? undefined, platform: res.platform !== "other" ? res.platform : app.platform });
     // Known person? Attach the chat to their crush profile automatically.
-    const known = res.theirName ? useCrushes.getState().findByName(res.theirName) : undefined;
+    const known = res.theirName ? useCrushes.getState().findByName(res.theirName, res.platform) : undefined;
     if (known) useCrushes.getState().setActive(known.id);
     toast(`Got ${messages.length} messages ✓`);
     return { ok: true };
