@@ -21,6 +21,9 @@
 | **Rizz Keyboard (Android)** | QWERTY keyboard with a ✨ bar: copy their message → ✨ → tap a reply to type it; or ✨ polishes your draft | `RizzKeyboardService.kt`, `app/keyboard.tsx` |
 | **Smart notifications (Android)** | A new message from an app you switched on → "✨ Get replies" → "Send 1/2/3" through that app's quick-reply (or copy) | `SmartNotifications.kt`, `app/notifications.tsx` |
 | **Live bubble (Android)** | Floating ✨ over any chat; captures the screen once on tap, OCRs it on-device, shows replies in an overlay | `BubbleService.kt`, `ChatOcr.kt`, `lib/liveBridge.ts` |
+| **Whole-chat read** | Hold ✨, scroll up: every screen is OCR'd (max 45), JS stitches overlapping screens into one transcript (`stitchFrames`); last 60 messages go as `messages`, older ones as `earlier` context (server trims to ~7k chars) | `BubbleService.kt`, `shared/liveChat.ts` |
+| **Who said what** | Per line: bubble colour (coloured = sent, grey/white = received) + alignment; Snapchat detected by its "ME"/name labels. Platform guessed from sent-bubble hue. Wrong sides → "Fix sides in app" loads the chat into the Reply screen | `ChatOcr.kt` |
+| **Live coach** | Coach panel over the chat app (focusable only while typing), `/v1/chat` with `context` = the chat read from screen, same minor / not-interested prechecks as replies | `BubbleService.kt`, `lib/liveBridge.ts`, `prompts.ts` |
 | **Share cards** | 9:16 story images (vibe %, practice score, profile score) carrying your invite code — the viral loop | `components/ShareCard.tsx`, `app/share.tsx` |
 | **Referrals** | 6-character code; a friend redeems it and you both get 7 days of Pro (referrer rewarded for their first 10) | `POST /v1/referral/redeem`, Me → Invite |
 | **Streaks, XP, challenges** | Rookie → Rizz God, daily streak, and 3 weekly challenges from a pool of 10 | `shared/progress.ts`, `app/progress.tsx` |

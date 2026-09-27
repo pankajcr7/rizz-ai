@@ -103,6 +103,20 @@ export function formatTranscript(messages: ChatMessage[]): string {
   return messages.map((m) => `${m.from === "me" ? "ME" : "THEM"}: ${redact(m.text)}`).join("\n");
 }
 
+/** Keep the newest messages that fit in `maxChars`, so long histories stay within the model's budget. */
+export function recentWithin(messages: ChatMessage[], maxChars: number): { kept: ChatMessage[]; dropped: number } {
+  let used = 0;
+  let i = messages.length;
+  while (i > 0 && used + messages[i - 1]!.text.length + 8 <= maxChars) used += messages[--i]!.text.length + 8;
+  return { kept: messages.slice(i), dropped: i };
+}
+
+function historyBlock(messages: ChatMessage[], maxChars: number, tag: string): string {
+  const { kept, dropped } = recentWithin(messages, maxChars);
+  const note = dropped ? `(${dropped} even older messages not shown)\n` : "";
+  return `<${tag}>\n${note}${formatTranscript(kept)}\n</${tag}>`;
+}
+
 function prefsBlock(prefs: Preferences): string {
   const lines = [
     `Length: ${LENGTH_HINT[prefs.length]}`,
@@ -127,6 +141,11 @@ export function buildSuggestPrompt(req: SuggestRequestParsed, forcedFlag: Safety
   if (req.notes) parts.push(`User's notes:\n<notes>\n${redact(req.notes)}\n</notes>`);
   if (req.memory?.length) {
     parts.push(`What you remember about them from earlier chats — use it for callbacks when it fits:\n<memory>\n${req.memory.map((m) => `- ${redact(m)}`).join("\n")}\n</memory>`);
+  }
+  if (req.earlier?.length) {
+    parts.push(
+      `Earlier history of this chat, read from their phone — use it to understand the relationship, running jokes and what they like; reply to the latest messages in the transcript:\n${historyBlock(req.earlier, 7000, "earlier_history")}`,
+    );
   }
   parts.push(
     req.messages.length
@@ -209,7 +228,11 @@ export function buildChatContext(req: ChatRequestParsed): string {
     const p = PRACTICE_PERSONAS[req.persona];
     lines.push(`The match's personality: ${p.label} — ${p.brief}.`);
   }
-  return `<settings>\n${lines.join("\n")}\n</settings>`;
+  const settings = `<settings>\n${lines.join("\n")}\n</settings>`;
+  const ctx = req.mode === "coach" ? req.context : undefined;
+  if (!ctx) return settings;
+  const who = ctx.theirName ? ` with ${ctx.theirName}` : "";
+  return `${settings}\n\nThe user is asking about their ${ctx.platform} chat${who}, read from their screen. "ME" is the user. Base your answer on it: quote specifics, notice patterns (who starts conversations, who asks questions, how replies changed over time), and give ready-to-send lines that fit this exact chat.\n${historyBlock(ctx.messages, 9000, "their_chat")}`;
 }
 
 // ---------------------------------------------------------------------------

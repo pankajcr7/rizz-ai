@@ -125,7 +125,9 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     if (!deviceId) return reply;
     const body = SuggestRequestSchema.parse(req.body);
 
-    const extra = [body.notes, body.draft, body.prefs.aboutMe].filter((t): t is string => !!t);
+    const extra = [body.notes, body.draft, body.prefs.aboutMe, ...(body.earlier ?? []).map((m) => m.text)].filter(
+      (t): t is string => !!t,
+    );
     const check = precheck(body.messages, extra);
     if (check.block) return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
 
@@ -171,10 +173,10 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const body = ChatRequestSchema.parse(req.body);
     // Only the user's own turns are checked; assistant turns are our output.
     const userTexts = body.turns.filter((t) => t.role === "user").map((t) => t.content);
-    if (mentionsMinor([...userTexts, body.prefs.aboutMe ?? ""])) {
-      return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
-    }
-    const result = await metered(deviceId, reply, () => ai.chat(body, "none"), chatQuota);
+    // A chat the user is asking the coach about gets the same checks as a reply request.
+    const check = precheck(body.context?.messages ?? [], [...userTexts, body.prefs.aboutMe ?? ""]);
+    if (check.block) return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
+    const result = await metered(deviceId, reply, () => ai.chat(body, check.forcedFlag), chatQuota);
     return result ?? reply;
   });
 

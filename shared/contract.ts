@@ -91,6 +91,8 @@ export const SuggestRequestSchema = z.object({
   platform: PlatformSchema.default("other"),
   /** May be empty only when a draft is given ("just polish what I wrote"). */
   messages: z.array(ChatMessageSchema).max(60),
+  /** Older history read in live "whole chat" mode, before `messages`. Context only; trimmed server-side. */
+  earlier: z.array(ChatMessageSchema).max(300).optional(),
   tone: ToneIdSchema,
   goal: GoalSchema.default("keep_going"),
   theirName: z.string().trim().max(60).optional(),
@@ -219,6 +221,14 @@ export const ChatRequestSchema = z
     mode: z.enum(["coach", "practice"]).default("coach"),
     persona: PersonaIdSchema.default("friendly"),
     turns: z.array(ChatTurnSchema).min(1).max(40),
+    /** Coach mode: the chat the user is asking about (e.g. read live from Instagram). */
+    context: z
+      .object({
+        platform: PlatformSchema.default("other"),
+        theirName: z.string().trim().max(60).optional(),
+        messages: z.array(ChatMessageSchema).min(1).max(360),
+      })
+      .optional(),
     prefs: PreferencesSchema.default({ length: "short", emoji: 1, language: "auto", boldness: 3 }),
   })
   .refine((r) => r.turns[r.turns.length - 1]?.role === "user", { message: "The last turn must be from the user" });

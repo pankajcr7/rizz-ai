@@ -29,7 +29,7 @@ class RizzOverlayModule : Module() {
     Name("RizzOverlay")
 
     // Payloads are JSON strings so the shapes live in one place (TypeScript).
-    Events("onCapture", "onToneChange", "onRegenerate", "onBubbleStopped")
+    Events("onCapture", "onToneChange", "onRegenerate", "onBubbleStopped", "onAction")
 
     OnCreate {
       BubbleService.listener = { event, json -> sendEvent(event, mapOf("json" to json)) }

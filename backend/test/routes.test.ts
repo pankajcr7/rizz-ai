@@ -131,6 +131,13 @@ describe("API", () => {
     expect(me.json().quota.used).toBe(0);
   });
 
+  it("checks older live-read history for minors too", async () => {
+    const payload = { ...chat, earlier: [{ from: "them", text: "btw i'm 16" }] };
+    const res = await app.inject({ method: "POST", url: "/v1/suggest", headers: auth, payload });
+    expect(res.statusCode).toBe(403);
+    expect(ai.suggest).not.toHaveBeenCalled();
+  });
+
   it("forces the not_interested flag and fills in a message", async () => {
     ai.suggest.mockImplementation(async (_req, flag) => ({ ...structuredClone(okSuggest), safety: { flag, message: "" } }));
     const res = await app.inject({
@@ -287,6 +294,22 @@ describe("API", () => {
       });
       expect(res.statusCode).toBe(403);
       expect(ai.chat).not.toHaveBeenCalled();
+    });
+
+    it("coaches about a live-read chat and applies the same safety checks to it", async () => {
+      const context = { theirName: "Maya", messages: [{ from: "them", text: "haha stop" }, { from: "me", text: "never" }] };
+      const ok = await app.inject({ method: "POST", url: "/v1/chat", headers: auth, payload: { ...coach, context } });
+      expect(ok.statusCode).toBe(200);
+      expect(ai.chat.mock.calls[0]![0]).toMatchObject({ context: { platform: "other", theirName: "Maya" } });
+
+      const no = { messages: [{ from: "them", text: "i'm not interested, please stop" }] };
+      await app.inject({ method: "POST", url: "/v1/chat", headers: auth, payload: { ...coach, context: no } });
+      expect(ai.chat.mock.calls[1]![1]).toBe("not_interested");
+
+      const minor = { messages: [{ from: "them", text: "i'm 15 btw" }] };
+      const blocked = await app.inject({ method: "POST", url: "/v1/chat", headers: auth, payload: { ...coach, context: minor } });
+      expect(blocked.statusCode).toBe(403);
+      expect(ai.chat).toHaveBeenCalledTimes(2);
     });
 
     it("uses its own daily allowance, not reply quota", async () => {

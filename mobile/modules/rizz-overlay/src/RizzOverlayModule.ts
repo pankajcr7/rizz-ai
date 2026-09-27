@@ -1,6 +1,6 @@
 import { NativeModule, requireOptionalNativeModule } from "expo";
 
-import type { CapturedChat, PanelState, RizzOverlayModuleEvents } from "./RizzOverlay.types";
+import type { CapturedChat, PanelAction, PanelState, RizzOverlayModuleEvents } from "./RizzOverlay.types";
 
 declare class RizzOverlayNative extends NativeModule<RizzOverlayModuleEvents> {
   isSupported(): boolean;
@@ -58,6 +58,9 @@ export const RizzOverlay = {
   },
   onRegenerate(cb: () => void) {
     return native?.addListener("onRegenerate", () => cb());
+  },
+  onAction(cb: (a: PanelAction) => void) {
+    return native?.addListener("onAction", (e) => cb(JSON.parse(e.json)));
   },
   onStopped(cb: () => void) {
     return native?.addListener("onBubbleStopped", () => cb());

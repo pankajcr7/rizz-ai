@@ -68,21 +68,28 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
       <Card style={{ marginBottom: space(6) }}>
         <Step n={1} done={overlayOk} title="Allow “Display over other apps”" body="Lets the ✨ bubble float above your chats." />
         {!overlayOk ? <Button title="Open settings" variant="secondary" size="md" onPress={() => RizzOverlay.openOverlaySettings()} style={{ marginBottom: space(4) }} /> : null}
-        <Step n={2} done={running} title="Start Live mode" body="Android asks to share your screen. It's only read when you tap the bubble." last />
+        <Step n={2} done={running} title="Start Live mode" body="Android asks to share your screen. It's only read when you tap or hold the bubble." last />
       </Card>
       {error ? <Notice text={error} /> : null}
 
       <Section title="How it works">
         {[
-          ["chatbubbles-outline", "Open any chat"],
-          ["sparkles-outline", "Tap the ✨ bubble"],
-          ["copy-outline", "Tap a reply to copy it, then paste & send"],
-        ].map(([icon, text]) => (
+          ["sparkles-outline", "Tap ✨ for replies", "Reads the chat on screen: Instagram, Snapchat, WhatsApp, Tinder, Messenger…"],
+          ["reader-outline", "Hold ✨ to read the whole chat", "Then scroll up slowly and tap Done. Replies use the full history, not just the last few texts."],
+          ["school-outline", "Ask the coach", "“Are they into me?”, “How do I ask them out?” — answers based on your actual chat."],
+          ["swap-horizontal-outline", "Knows who said what", "Uses each app's bubble colours and layout. If a message lands on the wrong side, tap “Fix sides in app”."],
+          ["copy-outline", "Tap a reply to copy it", "Then paste & send. Rizz AI never sends anything for you."],
+        ].map(([icon, text, body]) => (
           <View key={text} style={styles.how}>
             <View style={styles.howIcon}>
               <Ionicons name={icon as "sparkles-outline"} size={18} color={colors.pink} />
             </View>
-            <T v="bodyStrong">{text}</T>
+            <View style={{ flex: 1 }}>
+              <T v="bodyStrong">{text}</T>
+              <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
+                {body}
+              </T>
+            </View>
           </View>
         ))}
       </Section>
@@ -110,6 +117,6 @@ function Step({ n, done, title, body, last }: { n: number; done: boolean; title:
 
 const styles = StyleSheet.create({
   stepDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
-  how: { flexDirection: "row", alignItems: "center", gap: space(3), marginBottom: space(3) },
+  how: { flexDirection: "row", alignItems: "flex-start", gap: space(3), marginBottom: space(4) },
   howIcon: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" },
 });
