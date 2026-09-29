@@ -78,7 +78,7 @@ async function run(tone: ToneId) {
     const name = chat.theirName ?? "this chat";
     lastResult = {
       state: "result",
-      title: chat.wholeChat ? `${name} · whole chat read ✨` : chat.theirName ? `Replies for ${chat.theirName} ✨` : "Rizz AI ✨",
+      title: chat.wholeChat ? `${name} · whole chat` : chat.theirName ? `Replies for ${chat.theirName}` : "Your replies",
       activeTone: tone,
       tones: tonesForPanel(),
       suggestions: result.suggestions,

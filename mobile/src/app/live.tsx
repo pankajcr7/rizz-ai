@@ -1,46 +1,40 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { AppState, StyleSheet, View } from "react-native";
+import { AppState, Pressable, StyleSheet, View } from "react-native";
 import { RizzOverlay } from "../../modules/rizz-overlay";
-import { Button, Card, Header, IconButton, Notice, Screen, Section, T } from "../components/ui";
-import { colors, radius, space } from "../theme";
+import { Button, Notice, Screen, T } from "../components/ui";
+import { colors, font, radius, space } from "../theme";
+
+const supported = RizzOverlay.available;
 
 export default function Live() {
-  const back = <IconButton name="chevron-back" label="Back" onPress={() => router.back()} filled style={{ marginLeft: -4 }} />;
-  if (!RizzOverlay.available) {
-    return (
-      <Screen>
-        <Header title="Live mode" left={back} />
-        <Notice tone="info" text="Live mode needs Android — iPhones don't let apps see other apps' screens. Use the + button to scan a screenshot instead." />
-      </Screen>
-    );
-  }
-  return <LiveSetup back={back} />;
-}
-
-function LiveSetup({ back }: { back: React.ReactNode }) {
   const [overlayOk, setOverlayOk] = useState(RizzOverlay.hasOverlayPermission());
   const [running, setRunning] = useState(RizzOverlay.isRunning());
+  const [pendingChat, setPendingChat] = useState(RizzOverlay.smart.pendingChat());
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(false);
-  const [pendingChat] = useState(RizzOverlay.smart.pendingChat());
 
   const refresh = useCallback(() => {
     setOverlayOk(RizzOverlay.hasOverlayPermission());
     setRunning(RizzOverlay.isRunning());
+    setPendingChat(RizzOverlay.smart.pendingChat());
   }, []);
+  useFocusEffect(refresh);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (s) => s === "active" && refresh());
     return () => sub.remove();
   }, [refresh]);
-  useFocusEffect(refresh);
   useEffect(() => {
     const sub = RizzOverlay.onStopped(() => setRunning(false));
     return () => sub?.remove();
   }, []);
 
   const start = async () => {
+    if (!overlayOk) {
+      RizzOverlay.openOverlaySettings();
+      return;
+    }
     setError(undefined);
     setStarting(true);
     try {
@@ -54,79 +48,124 @@ function LiveSetup({ back }: { back: React.ReactNode }) {
         };
         openWhenReady();
       }
-      if (!ok) setError("Live mode needs screen access to read your chats. Tap Start and choose “Start now”.");
+      if (!ok) setError("Android needs screen access to read a chat. Choose “Start now” when the prompt appears.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't start live mode");
+      setError(e instanceof Error ? e.message : "Couldn't start Live mode.");
     } finally {
       setStarting(false);
     }
   };
 
-  return (
-    <Screen
-      footer={
-        running ? (
-          <Button title="Stop Live mode" variant="secondary" icon="stop-circle-outline" onPress={() => { RizzOverlay.stop(); setRunning(false); }} />
-        ) : (
-          <Button title={pendingChat ? `Start Live mode & open ${pendingChat.name}` : "Start Live mode"} icon="radio-button-on" disabled={!overlayOk} loading={starting} onPress={start} />
-        )
-      }
-    >
-      <Header title="Live mode" subtitle="Replies right inside Instagram, Tinder, Snapchat…" left={back} />
-      {pendingChat ? <Notice tone="info" text={`Start Live mode to open ${pendingChat.name} on ${pendingChat.platform}. Scroll up through the chat, then tap Done. We'll save it for future replies.`} /> : null}
+  const stop = () => {
+    RizzOverlay.stop();
+    setRunning(false);
+  };
 
-      <Card style={{ marginBottom: space(6) }}>
-        <Step n={1} done={overlayOk} title="Allow “Display over other apps”" body="Lets the ✨ bubble float above your chats." />
-        {!overlayOk ? <Button title="Open settings" variant="secondary" size="md" onPress={() => RizzOverlay.openOverlaySettings()} style={{ marginBottom: space(4) }} /> : null}
-        <Step n={2} done={running} title="Start Live mode" body="Android asks to share your screen. It's only read when you tap or hold the bubble." last />
-      </Card>
-      {error ? <Notice text={error} /> : null}
+  return <Screen footer={supported ? (
+    running ? <Button title="Stop Live mode" icon="stop-circle-outline" variant="secondary" onPress={stop} /> :
+      <Button title={!overlayOk ? "Allow floating bubble" : pendingChat ? `Start & open ${pendingChat.name}` : "Start Live mode"} icon={!overlayOk ? "settings-outline" : "radio-button-on"} loading={starting} onPress={() => void start()} />
+  ) : <Button title="Use screenshot instead" icon="images-outline" onPress={() => router.replace("/")} />}>
+    <View style={styles.topBar}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}>
+        <Ionicons name="arrow-back" color={colors.text} size={25} />
+      </Pressable>
+      <T v="caption" color={colors.textDim} style={styles.topLabel}>LIVE MODE</T>
+      <View style={styles.topDot} />
+    </View>
 
-      <Section title="How it works">
-        {[
-          ["sparkles-outline", "Tap ✨ for replies", "Reads the chat on screen: Instagram, Snapchat, WhatsApp, Tinder, Messenger…"],
-          ["reader-outline", "Hold ✨ to read the whole chat", "Then scroll up slowly and tap Done. Replies use the full history, not just the last few texts."],
-          ["school-outline", "Ask the coach", "“Are they into me?”, “How do I ask them out?” — answers based on your actual chat."],
-          ["swap-horizontal-outline", "Knows who said what", "Uses each app's bubble colours and layout. If a message lands on the wrong side, tap “Fix sides in app”."],
-          ["copy-outline", "Tap a reply to copy it", "Then paste & send. Rizz AI never sends anything for you."],
-        ].map(([icon, text, body]) => (
-          <View key={text} style={styles.how}>
-            <View style={styles.howIcon}>
-              <Ionicons name={icon as "sparkles-outline"} size={18} color={colors.pink} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <T v="bodyStrong">{text}</T>
-              <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
-                {body}
-              </T>
-            </View>
-          </View>
-        ))}
-      </Section>
+    <T style={styles.title}>Your wingman,{"\n"}<T style={styles.titleLime}>everywhere.</T></T>
+    <T v="body" color={colors.textDim} style={styles.intro}>Reply ideas while you’re in the conversation.</T>
 
-      <Notice tone="info" icon="shield-checkmark-outline" text="Chats you read are saved on this phone by person and app, so future replies can use them. The messages you read are sent to write replies." />
-    </Screen>
-  );
-}
-
-function Step({ n, done, title, body, last }: { n: number; done: boolean; title: string; body: string; last?: boolean }) {
-  return (
-    <View style={{ flexDirection: "row", gap: space(3), marginBottom: last ? 0 : space(4) }}>
-      <View style={[styles.stepDot, done && { backgroundColor: colors.success }]}>
-        {done ? <Ionicons name="checkmark" size={16} color={colors.bg} /> : <T v="bodyStrong">{n}</T>}
-      </View>
-      <View style={{ flex: 1 }}>
-        <T v="bodyStrong">{title}</T>
-        <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
-          {body}
-        </T>
+    <View style={styles.preview} accessibilityLabel="Preview of the Live mode floating bubble over a chat">
+      <T v="caption" color={colors.textMute}>HOW IT LOOKS</T>
+      <View style={styles.theirBubble}><T v="bodyStrong">you free tonight? 👀</T></View>
+      <View style={styles.previewBottom}>
+        <View style={styles.typingBubble}><T style={styles.typingText}>•••</T></View>
+        <View style={styles.rBubble}><T style={styles.rText}>R</T></View>
       </View>
     </View>
-  );
+
+    <View style={styles.status}>
+      <View style={[styles.statusDot, running && { backgroundColor: colors.pink }]} />
+      <T v="caption" color={running ? colors.pink : overlayOk ? colors.lime : colors.textDim}>
+        {running ? "LIVE MODE IS ON" : overlayOk ? "READY TO START" : supported ? "ONE QUICK SETUP" : "ANDROID ONLY"}
+      </T>
+    </View>
+
+    {pendingChat && supported ? <View style={styles.pending}>
+      <Ionicons name="chatbubble-ellipses" color={colors.pink} size={21} />
+      <View style={{ flex: 1 }}>
+        <T v="bodyStrong">{pendingChat.name} is waiting</T>
+        <T v="small" color={colors.textDim}>Start Live mode to read this {pendingChat.platform} chat.</T>
+      </View>
+    </View> : null}
+
+    {supported ? <View style={styles.setup}>
+      <Pressable accessibilityRole="button" onPress={() => RizzOverlay.openOverlaySettings()} style={styles.setupRow}>
+        <View style={styles.setupIcon}><Ionicons name="chatbubble-outline" size={25} color={colors.text} /></View>
+        <View style={{ flex: 1 }}>
+          <T v="headline">Floating bubble</T>
+          <T v="small" color={colors.textDim}>Shows Rizz AI over your chats</T>
+        </View>
+        <Ionicons name={overlayOk ? "checkmark-circle" : "chevron-forward"} size={25} color={overlayOk ? colors.lime : colors.textDim} />
+      </Pressable>
+      <View style={styles.divider} />
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: running || starting }} onPress={() => { if (!running && !starting) void start(); }} style={styles.setupRow}>
+        <View style={styles.setupIcon}><Ionicons name="lock-closed-outline" size={25} color={colors.text} /></View>
+        <View style={{ flex: 1 }}>
+          <T v="headline">Screen access</T>
+          <T v="small" color={colors.textDim}>{running ? "Active until you stop Live mode" : "Android asks when you tap Start"}</T>
+        </View>
+        <Ionicons name={running ? "checkmark-circle" : "chevron-forward"} size={25} color={running ? colors.lime : colors.textDim} />
+      </Pressable>
+    </View> : null}
+
+    {supported ? <T v="body" color={colors.textDim} style={styles.hint}>Tap <T color={colors.lime}>R</T> for replies. Hold it to read the full chat.</T> : null}
+    {error ? <Notice text={error} /> : null}
+    {!supported ? <Notice tone="info" text="Live mode works on Android. You can still get replies by adding a screenshot in Chat Help." /> : null}
+
+    <View style={styles.more}>
+      <T v="caption" color={colors.textMute} style={{ marginBottom: space(3) }}>YOUR LIVE TOOLKIT</T>
+      <Feature icon="chatbubbles-outline" title="Replies on the spot" body="Tap the bubble in a chat to get lines you can copy." color={colors.lime} />
+      <Feature icon="albums-outline" title="The whole story" body="Hold the bubble, scroll up, and tap Done to use older messages too." color={colors.pink} />
+      <Feature icon="bulb-outline" title="Coach in your corner" body="Ask what to say next, based on the chat you read." color={colors.lime} />
+    </View>
+    <View style={styles.privacy}><Ionicons name="shield-checkmark-outline" size={19} color={colors.lime} /><T v="small" color={colors.textDim} style={{ flex: 1 }}>Chats you read stay on this phone for future context. Text is sent for AI help when you tap the bubble. Rizz AI never sends a message for you.</T></View>
+  </Screen>;
+}
+
+function Feature({ icon, title, body, color }: { icon: "chatbubbles-outline" | "albums-outline" | "bulb-outline"; title: string; body: string; color: string }) {
+  return <View style={styles.feature}>
+    <View style={[styles.featureIcon, { backgroundColor: color }]}><Ionicons name={icon} size={20} color={colors.bg} /></View>
+    <View style={{ flex: 1 }}><T v="bodyStrong">{title}</T><T v="small" color={colors.textDim} style={{ marginTop: 2 }}>{body}</T></View>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  stepDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
-  how: { flexDirection: "row", alignItems: "flex-start", gap: space(3), marginBottom: space(4) },
-  howIcon: { width: 36, height: 36, borderRadius: radius.sm, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center" },
+  topBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: space(7) },
+  back: { width: 44, height: 44, alignItems: "flex-start", justifyContent: "center" },
+  topLabel: { letterSpacing: 2.8 },
+  topDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.pink, marginRight: 17 },
+  title: { color: colors.text, fontFamily: font.extrabold, fontSize: 43, lineHeight: 47, letterSpacing: -1.8 },
+  titleLime: { color: colors.lime, fontFamily: font.extrabold, fontSize: 43, lineHeight: 47, letterSpacing: -1.8 },
+  intro: { marginTop: space(3), marginBottom: space(6) },
+  preview: { borderRadius: radius.xl, borderWidth: 2, borderColor: colors.lime, backgroundColor: colors.bg, minHeight: 210, padding: space(5), justifyContent: "space-between" },
+  theirBubble: { alignSelf: "flex-start", maxWidth: "80%", backgroundColor: colors.surface3, borderRadius: radius.lg, borderBottomLeftRadius: 4, paddingHorizontal: space(4), paddingVertical: space(3), marginTop: space(3) },
+  previewBottom: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: space(3) },
+  typingBubble: { minWidth: 110, height: 53, borderRadius: 24, borderBottomRightRadius: 4, backgroundColor: colors.lime, alignItems: "center", justifyContent: "center" },
+  typingText: { color: colors.bg, fontFamily: font.extrabold, fontSize: 24, letterSpacing: 4 },
+  rBubble: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: colors.lime, borderWidth: 4, borderColor: colors.bg },
+  rText: { color: colors.bg, fontFamily: font.extrabold, fontSize: 31, fontStyle: "italic" },
+  status: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: space(2), backgroundColor: colors.surface2, borderRadius: radius.pill, paddingHorizontal: space(5), height: 38, marginVertical: space(5) },
+  statusDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.lime },
+  pending: { flexDirection: "row", alignItems: "center", gap: space(3), backgroundColor: colors.surface, borderColor: colors.pink, borderWidth: 1, borderRadius: radius.lg, padding: space(4), marginBottom: space(4) },
+  setup: { borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: space(5) },
+  setupRow: { minHeight: 96, flexDirection: "row", alignItems: "center", gap: space(3) },
+  setupIcon: { width: 34, alignItems: "center" },
+  divider: { height: 1, backgroundColor: colors.border },
+  hint: { textAlign: "center", marginTop: space(5), marginBottom: space(7) },
+  more: { gap: space(2), marginBottom: space(6) },
+  feature: { flexDirection: "row", gap: space(3), alignItems: "center", borderRadius: radius.lg, padding: space(3), backgroundColor: colors.surface },
+  featureIcon: { width: 39, height: 39, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  privacy: { flexDirection: "row", gap: space(3), alignItems: "flex-start", borderRadius: radius.lg, padding: space(4), borderWidth: 1, borderColor: colors.border },
 });

@@ -57,6 +57,12 @@ class BubbleService : Service() {
     private const val ACTION_STOP = "expo.modules.rizzoverlay.STOP"
     private const val CHANNEL_ID = "rizz_live"
     private const val NOTIFICATION_ID = 4210
+    private const val LIVE_BG = "#F20B0B0C"
+    private const val LIVE_SURFACE = "#19191B"
+    private const val LIVE_SURFACE_2 = "#2B2B2F"
+    private const val LIVE_LIME = "#D5FF63"
+    private const val LIVE_PINK = "#FF3EAD"
+    private const val LIVE_DIM = "#B4B4B9"
     /** Screens kept per history read: plenty for a long chat, bounded memory and upload. */
     private const val MAX_HISTORY_FRAMES = 45
 
@@ -154,15 +160,18 @@ class BubbleService : Service() {
   private fun addBubble() {
     val size = dp(56)
     val view = TextView(this).apply {
-      text = "✨"
-      textSize = 24f
+      text = "R"
+      textSize = 28f
+      setTextColor(Color.parseColor("#0B0B0C"))
+      typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
       gravity = Gravity.CENTER
-      background = GradientDrawable(
-        GradientDrawable.Orientation.TL_BR,
-        intArrayOf(Color.parseColor("#FF4D8D"), Color.parseColor("#7C4DFF")),
-      ).apply { shape = GradientDrawable.OVAL }
+      background = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(Color.parseColor(LIVE_LIME))
+        setStroke(dp(3), Color.parseColor("#0B0B0C"))
+      }
       elevation = dp(6).toFloat()
-      contentDescription = "Rizz AI: get reply ideas for this chat"
+      contentDescription = "Rizz AI Live: tap for replies, hold to read the whole chat"
     }
     val params = WindowManager.LayoutParams(
       size, size, overlayType(),
@@ -321,7 +330,7 @@ class BubbleService : Service() {
     if (historyFrames.isEmpty()) {
       showError(
         "No chat found here",
-        "Open a conversation, then long-press ✨ and scroll up slowly. Some apps block screen reading.",
+        "Open a conversation, then hold the R bubble and scroll up slowly. Some apps block screen reading.",
       )
       return
     }
@@ -348,13 +357,17 @@ class BubbleService : Service() {
       orientation = LinearLayout.HORIZONTAL
       gravity = Gravity.CENTER_VERTICAL
       setPadding(dp(16), dp(8), dp(8), dp(8))
-      background = GradientDrawable().apply { setColor(Color.parseColor("#F2161220")); cornerRadius = dp(28).toFloat() }
+      background = GradientDrawable().apply {
+        setColor(Color.parseColor(LIVE_BG))
+        cornerRadius = dp(28).toFloat()
+        setStroke(dp(1), Color.parseColor(LIVE_LIME))
+      }
       elevation = dp(10).toFloat()
     }
-    val text = label("📜 Scroll up slowly…", 14f, "#FFFFFF", bold = true)
+    val text = label("Scroll up slowly…", 14f, "#FFFFFF", bold = true)
     row.addView(text)
     row.addView(chip("Done ✓", primary = true) { finishHistory() }, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(12) })
-    row.addView(label("✕", 18f, "#B9B3C9").apply {
+    row.addView(label("✕", 18f, LIVE_DIM).apply {
       setPadding(dp(12), dp(4), dp(8), dp(4))
       contentDescription = "Cancel"
       setOnClickListener { cancelHistory() }
@@ -376,7 +389,7 @@ class BubbleService : Service() {
   @SuppressLint("SetTextI18n")
   private fun updatePill() {
     val n = historyFrames.size
-    pillLabel?.text = if (n <= 1) "📜 Scroll up slowly…" else "📜 Read $n screens · keep going"
+    pillLabel?.text = if (n <= 1) "Scroll up slowly…" else "Read $n screens · keep going"
   }
 
   private fun removePill() {
@@ -438,18 +451,26 @@ class BubbleService : Service() {
 
     val root = LinearLayout(this).apply {
       orientation = LinearLayout.VERTICAL
-      setPadding(dp(16), dp(14), dp(16), dp(16))
+      setPadding(dp(18), dp(15), dp(18), dp(18))
       background = GradientDrawable().apply {
-        setColor(Color.parseColor("#F2161220"))
-        cornerRadius = dp(22).toFloat()
+        setColor(Color.parseColor(LIVE_BG))
+        cornerRadius = dp(28).toFloat()
+        setStroke(dp(1), Color.parseColor(LIVE_LIME))
       }
       elevation = dp(12).toFloat()
     }
 
-    // Header: title + close
+    root.addView(View(this).apply {
+      background = GradientDrawable().apply { setColor(Color.parseColor("#45454A")); cornerRadius = dp(3).toFloat() }
+    }, LinearLayout.LayoutParams(dp(34), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(12) })
+    root.addView(label("RIZZ AI  •  LIVE", 11f, LIVE_LIME, bold = true).apply {
+      letterSpacing = 0.16f
+      setPadding(0, 0, 0, dp(7))
+    })
+    // Keep the title and close control visible above the swipeable reply deck.
     val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-    header.addView(label(state.optString("title", "Rizz AI ✨"), 16f, "#FFFFFF", bold = true), LinearLayout.LayoutParams(0, -2, 1f))
-    header.addView(label("✕", 18f, "#B9B3C9").apply {
+    header.addView(label(state.optString("title", "Rizz AI"), 21f, "#FFFFFF", bold = true), LinearLayout.LayoutParams(0, -2, 1f))
+    header.addView(label("✕", 20f, LIVE_DIM).apply {
       setPadding(dp(10), dp(4), dp(4), dp(4))
       contentDescription = "Close"
       setOnClickListener { hidePanel() }
@@ -457,8 +478,8 @@ class BubbleService : Service() {
     root.addView(header)
 
     when (state.optString("state")) {
-      "loading" -> root.addView(label("Thinking of something good…", 14f, "#B9B3C9").apply { setPadding(0, dp(8), 0, 0) })
-      "error" -> root.addView(label(state.optString("message"), 14f, "#FFB4C8").apply { setPadding(0, dp(8), 0, 0) })
+      "loading" -> root.addView(label("Reading the room…", 15f, LIVE_DIM).apply { setPadding(0, dp(12), 0, dp(4)) })
+      "error" -> root.addView(label(state.optString("message"), 14f, "#FFD0E6").apply { setPadding(0, dp(12), 0, dp(4)) })
       "coach" -> renderCoach(root, state)
       else -> renderResult(root, state)
     }
@@ -509,7 +530,7 @@ class BubbleService : Service() {
   private fun renderCoach(root: LinearLayout, state: JSONObject) {
     val turns = state.optJSONArray("turns") ?: JSONArray()
     if (turns.length() == 0) {
-      root.addView(label(state.optString("intro", "Ask me anything about this chat."), 13f, "#B9B3C9").apply { setPadding(0, dp(6), 0, 0) })
+      root.addView(label(state.optString("intro", "Ask me anything about this chat."), 13f, LIVE_DIM).apply { setPadding(0, dp(8), 0, 0) })
     }
     for (i in 0 until turns.length()) {
       val t = turns.getJSONObject(i)
@@ -517,15 +538,15 @@ class BubbleService : Service() {
       if (mine) {
         root.addView(label(t.optString("content"), 14f, "#FFFFFF").apply {
           setPadding(dp(12), dp(8), dp(12), dp(8))
-          background = GradientDrawable().apply { setColor(Color.parseColor("#FF3D7F")); cornerRadius = dp(14).toFloat() }
+          background = GradientDrawable().apply { setColor(Color.parseColor(LIVE_PINK)); cornerRadius = dp(16).toFloat() }
         }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(10); gravity = Gravity.END })
       } else {
         // Each paragraph can be copied on its own: the coach puts ready-to-send lines on separate lines.
         t.optString("content").split("\n").map { it.trim() }.filter { it.isNotEmpty() }.forEach { para ->
           val sendable = para.removePrefix("-").removePrefix("•").trim().trim('"', '“', '”')
-          root.addView(label(para, 14f, "#EDE9F6").apply {
+          root.addView(label(para, 14f, "#FFFFFF").apply {
             setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = GradientDrawable().apply { setColor(Color.parseColor("#241E33")); cornerRadius = dp(14).toFloat() }
+            background = GradientDrawable().apply { setColor(Color.parseColor(LIVE_SURFACE_2)); cornerRadius = dp(16).toFloat() }
             contentDescription = "Coach: $para. Tap to copy."
             setOnClickListener { copy(sendable, close = false) }
           }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
@@ -533,9 +554,9 @@ class BubbleService : Service() {
       }
     }
     if (state.optBoolean("thinking")) {
-      root.addView(label("Coach is typing…", 13f, "#9C95AE").apply { setPadding(0, dp(8), 0, 0) })
+      root.addView(label("Coach is typing…", 13f, LIVE_DIM).apply { setPadding(0, dp(8), 0, 0) })
     } else if (turns.length() > 0) {
-      root.addView(label("Tap any line to copy it", 11f, "#6F6882").apply { setPadding(0, dp(6), 0, 0) })
+      root.addView(label("Tap any line to copy it", 11f, LIVE_DIM).apply { setPadding(0, dp(6), 0, 0) })
     }
 
     val chips = state.optJSONArray("chips")
@@ -555,14 +576,14 @@ class BubbleService : Service() {
     val inputRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     val input = EditText(this).apply {
       hint = "Ask the coach…"
-      setHintTextColor(Color.parseColor("#6F6882"))
+      setHintTextColor(Color.parseColor(LIVE_DIM))
       setTextColor(Color.WHITE)
       textSize = 14f
       maxLines = 3
       imeOptions = EditorInfo.IME_ACTION_SEND
       inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES
       setPadding(dp(14), dp(10), dp(14), dp(10))
-      background = GradientDrawable().apply { setColor(Color.parseColor("#2A2438")); cornerRadius = dp(20).toFloat() }
+      background = GradientDrawable().apply { setColor(Color.parseColor(LIVE_SURFACE_2)); cornerRadius = dp(20).toFloat() }
       isEnabled = !state.optBoolean("thinking")
     }
     fun send() {
@@ -583,14 +604,14 @@ class BubbleService : Service() {
       false
     }
     inputRow.addView(input, LinearLayout.LayoutParams(0, -2, 1f))
-    inputRow.addView(label("➤", 20f, "#FF3D7F", bold = true).apply {
+    inputRow.addView(label("➤", 20f, LIVE_LIME, bold = true).apply {
       setPadding(dp(12), dp(6), dp(4), dp(6))
       contentDescription = "Send"
       setOnClickListener { send() }
     })
     root.addView(inputRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
 
-    root.addView(label("‹  Back to replies", 13f, "#FF8FB5", bold = true).apply {
+    root.addView(label("‹  Back to replies", 13f, LIVE_PINK, bold = true).apply {
       setPadding(0, dp(12), 0, 0)
       setOnClickListener { action("show_replies") }
     })
@@ -599,20 +620,26 @@ class BubbleService : Service() {
   @SuppressLint("SetTextI18n")
   private fun renderResult(root: LinearLayout, state: JSONObject) {
     state.optJSONObject("vibe")?.let { vibe ->
-      val interest = vibe.optInt("interest")
-      val bar = "▰".repeat(interest / 10) + "▱".repeat(10 - interest / 10)
-      root.addView(label("Vibe $bar $interest% · ${vibe.optString("mood")}", 13f, "#FFD166").apply { setPadding(0, dp(6), 0, 0) })
-      root.addView(label(vibe.optString("summary"), 13f, "#B9B3C9").apply { setPadding(0, dp(2), 0, dp(4)) })
+      val card = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(13), dp(10), dp(13), dp(10))
+        background = GradientDrawable().apply { setColor(Color.parseColor(LIVE_SURFACE)); cornerRadius = dp(16).toFloat() }
+      }
+      card.addView(label("VIBE CHECK  •  ${vibe.optInt("interest")}%", 11f, LIVE_LIME, bold = true))
+      vibe.optString("summary").takeIf { it.isNotBlank() }?.let {
+        card.addView(label(it, 13f, LIVE_DIM).apply { setPadding(0, dp(4), 0, 0) })
+      }
+      root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(11) })
     }
     state.optString("stats").takeIf { it.isNotBlank() }?.let {
-      root.addView(label("📊 $it", 12f, "#9C95AE").apply { setPadding(0, 0, 0, dp(4)) })
+      root.addView(label(it, 12f, LIVE_DIM).apply { setPadding(0, dp(7), 0, 0) })
     }
 
     state.optJSONObject("safety")?.let { s ->
       if (s.optString("flag", "none") != "none") {
-        root.addView(label("⚠️ ${s.optString("message")}", 13f, "#FFB4C8").apply {
+        root.addView(label("⚠️ ${s.optString("message")}", 13f, "#FFD0E6").apply {
           setPadding(dp(10), dp(8), dp(10), dp(8))
-          background = GradientDrawable().apply { setColor(Color.parseColor("#33FF4D8D")); cornerRadius = dp(12).toFloat() }
+          background = GradientDrawable().apply { setColor(Color.parseColor("#482C2732")); cornerRadius = dp(12).toFloat() }
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
       }
     }
@@ -626,11 +653,12 @@ class BubbleService : Service() {
         val t = tones.getJSONObject(i)
         val id = t.getString("id")
         val selected = id == active
-        row.addView(label("${t.optString("emoji")} ${t.optString("label")}", 13f, if (selected) "#FFFFFF" else "#D9D3E8").apply {
-          setPadding(dp(12), dp(6), dp(12), dp(6))
+        row.addView(label(t.optString("label"), 13f, if (selected) "#0B0B0C" else "#FFFFFF", bold = selected).apply {
+          setPadding(dp(16), dp(8), dp(16), dp(8))
           background = GradientDrawable().apply {
-            setColor(Color.parseColor(if (selected) "#FF4D8D" else "#2A2438"))
-            cornerRadius = dp(16).toFloat()
+            setColor(Color.parseColor(if (selected) LIVE_PINK else LIVE_SURFACE))
+            cornerRadius = dp(19).toFloat()
+            if (!selected) setStroke(dp(1), Color.parseColor(LIVE_LIME))
           }
           setOnClickListener {
             if (!selected) {
@@ -643,46 +671,66 @@ class BubbleService : Service() {
       root.addView(HorizontalScrollView(this).apply {
         isHorizontalScrollBarEnabled = false
         addView(row)
-      }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10); bottomMargin = dp(4) })
+      }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12); bottomMargin = dp(9) })
     }
 
-    // Suggestion cards — tap to copy
+    // Large, swipeable reply cards keep the underlying conversation visible.
     val suggestions = state.optJSONArray("suggestions")
-    if (suggestions != null) {
+    if (suggestions != null && suggestions.length() > 0) {
+      root.addView(label("SWIPE FOR YOUR REPLIES", 11f, LIVE_DIM, bold = true).apply { setPadding(0, dp(4), 0, dp(7)) })
+      val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+      val cardWidth = (resources.displayMetrics.widthPixels - dp(70)).coerceAtLeast(dp(220))
       for (i in 0 until suggestions.length()) {
         val s = suggestions.getJSONObject(i)
         val text = s.getString("text")
         val card = LinearLayout(this).apply {
           orientation = LinearLayout.VERTICAL
-          setPadding(dp(14), dp(12), dp(14), dp(12))
-          background = GradientDrawable().apply { setColor(Color.parseColor("#241E33")); cornerRadius = dp(16).toFloat() }
+          setPadding(dp(16), dp(13), dp(16), dp(15))
+          background = GradientDrawable().apply {
+            setColor(Color.parseColor(LIVE_SURFACE))
+            cornerRadius = dp(22).toFloat()
+            setStroke(dp(1), Color.parseColor("#45454A"))
+          }
           isClickable = true
           contentDescription = "Copy: $text"
           setOnClickListener { copy(text) }
         }
-        card.addView(label(text, 15f, "#FFFFFF"))
-        card.addView(label("💡 ${s.optString("why")}", 12f, "#9C95AE").apply { setPadding(0, dp(4), 0, 0) })
-        root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        card.addView(label("${i + 1} / ${suggestions.length()}", 11f, LIVE_LIME, bold = true))
+        card.addView(label(text, 20f, "#FFFFFF", bold = true), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        s.optString("why").takeIf { it.isNotBlank() }?.let { why ->
+          card.addView(label(why, 12f, LIVE_DIM), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        }
+        card.addView(label("▣  Copy reply", 15f, "#0B0B0C", bold = true).apply {
+          gravity = Gravity.CENTER
+          setPadding(dp(10), dp(11), dp(10), dp(11))
+          background = GradientDrawable().apply { setColor(Color.parseColor(LIVE_PINK)); cornerRadius = dp(28).toFloat() }
+          setOnClickListener { copy(text) }
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(15) })
+        row.addView(card, LinearLayout.LayoutParams(cardWidth, -2).apply { rightMargin = dp(9) })
       }
+      root.addView(HorizontalScrollView(this).apply {
+        isHorizontalScrollBarEnabled = false
+        addView(row)
+      })
     }
 
     state.optString("coachTip").takeIf { it.isNotBlank() }?.let {
-      root.addView(label("🧠 $it", 12f, "#9C95AE").apply { setPadding(0, dp(10), 0, 0) })
+      root.addView(label(it, 12f, LIVE_DIM).apply { setPadding(0, dp(10), 0, 0) })
     }
 
     // What else you can do with this chat
     val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
     if (!state.optBoolean("wholeChat")) {
-      actions.addView(chip("📜 Read whole chat") { startHistory() }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
+      actions.addView(chip("Read whole chat") { startHistory() }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(7) })
     }
-    actions.addView(chip("🧠 Ask coach") { action("coach_open") }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
-    actions.addView(chip("✏️ Fix sides in app") { openApp() }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
+    actions.addView(chip("Ask coach") { action("coach_open") }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(7) })
+    actions.addView(chip("Fix sides in app") { openApp() }, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(7) })
     root.addView(HorizontalScrollView(this).apply {
       isHorizontalScrollBarEnabled = false
       addView(actions)
     }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
-    root.addView(label("↻  New ideas", 14f, "#FF8FB5", bold = true).apply {
+    root.addView(label("↻  New ideas", 14f, LIVE_PINK, bold = true).apply {
       gravity = Gravity.CENTER
       setPadding(0, dp(12), 0, 0)
       setOnClickListener {
@@ -695,7 +743,7 @@ class BubbleService : Service() {
   private fun copy(text: String, close: Boolean = true) {
     val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("Rizz AI reply", text))
-    Toast.makeText(this, "Copied! Long-press the message box to paste 💬", Toast.LENGTH_SHORT).show()
+    Toast.makeText(this, "Copied — paste it in the chat", Toast.LENGTH_SHORT).show()
     if (close) hidePanel()
   }
 
@@ -713,11 +761,12 @@ class BubbleService : Service() {
   // ---------------------------------------------------------------------------
 
   private fun chip(text: String, primary: Boolean = false, onClick: () -> Unit) =
-    label(text, 13f, "#FFFFFF", bold = primary).apply {
-      setPadding(dp(12), dp(7), dp(12), dp(7))
+    label(text, 13f, if (primary) "#0B0B0C" else "#FFFFFF", bold = true).apply {
+      setPadding(dp(14), dp(8), dp(14), dp(8))
       background = GradientDrawable().apply {
-        setColor(Color.parseColor(if (primary) "#FF3D7F" else "#2A2438"))
-        cornerRadius = dp(16).toFloat()
+        setColor(Color.parseColor(if (primary) LIVE_LIME else LIVE_SURFACE))
+        cornerRadius = dp(18).toFloat()
+        if (!primary) setStroke(dp(1), Color.parseColor("#45454A"))
       }
       setOnClickListener { onClick() }
     }
