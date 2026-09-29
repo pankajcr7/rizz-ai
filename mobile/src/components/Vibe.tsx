@@ -5,8 +5,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { TONES, type Preferences } from "@rizz/shared";
-import { GOAL_OPTIONS, PLATFORM_OPTIONS } from "../lib/options";
+import { STAGES, TONES, type Preferences } from "@rizz/shared";
+import { GOAL_OPTIONS, PLATFORM_OPTIONS, STAGE_OPTIONS } from "../lib/options";
 import { useApp } from "../store";
 import { colors, font, GUTTER, radius, space } from "../theme";
 import { Sheet } from "./Sheet";
@@ -35,11 +35,12 @@ const BOLD_LABELS = ["Safe", "Chill", "Playful", "Bold", "Spicy"];
 export const boldLabel = (n: number) => BOLD_LABELS[n - 1] ?? "Playful";
 
 export function VibePills({ onOpen, showGoal }: { onOpen: () => void; showGoal?: boolean }) {
-  const { defaultTone, prefs, goal } = useApp();
+  const { defaultTone, prefs, goal, stage } = useApp();
   const tone = TONES[defaultTone];
+  const stageLabel = stage === "auto" ? null : `${STAGES[stage].emoji} ${STAGES[stage].label}`;
   const goalLabel = GOAL_OPTIONS.find((g) => g.id === goal)?.label;
   const lang = LANGUAGES.find((l) => l.id === prefs.language)?.label ?? prefs.language;
-  const pills = [`${tone.emoji} ${tone.label}`, `🌶 ${boldLabel(prefs.boldness)}`, ...(showGoal && goalLabel ? [goalLabel] : []), lang];
+  const pills = [`${tone.emoji} ${tone.label}`, `🌶 ${boldLabel(prefs.boldness)}`, ...(showGoal && stageLabel ? [stageLabel] : []), ...(showGoal && goalLabel ? [goalLabel] : []), lang];
   return (
     <Pressable
       onPress={() => {
@@ -69,7 +70,7 @@ export function VibePills({ onOpen, showGoal }: { onOpen: () => void; showGoal?:
 }
 
 export function VibeSheet({ open, onClose, showGoal }: { open: boolean; onClose: () => void; showGoal?: boolean }) {
-  const { defaultTone, setDefaultTone, prefs, setPrefs, goal, setGoal, platform, setPlatform } = useApp();
+  const { defaultTone, setDefaultTone, prefs, setPrefs, goal, setGoal, stage, setStage, platform, setPlatform } = useApp();
   return (
     <Sheet open={open} onClose={onClose} title="Set the vibe" footer={<Button title="Done" onPress={onClose} />}>
       <Section title="Tone">
@@ -101,6 +102,15 @@ export function VibeSheet({ open, onClose, showGoal }: { open: boolean; onClose:
           </T>
         </View>
       </Section>
+
+      {showGoal ? (
+        <Section title="How well do you know them?">
+          <ChipRow options={STAGE_OPTIONS} value={stage} onChange={setStage} wrap />
+          <T v="small" color={colors.textMute} style={{ marginTop: space(2) }}>
+            {STAGES[stage].hint}. {stage === "first_dm" || stage === "new" ? "Replies will give them an easy reason to keep chatting." : ""}
+          </T>
+        </Section>
+      ) : null}
 
       {showGoal ? (
         <Section title="Goal">

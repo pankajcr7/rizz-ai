@@ -31,6 +31,12 @@ export const SuggestOut = z.object({
     .optional(),
   nextMove: z.object({ action: z.enum(["reply", "wait", "end"]), reason: z.string() }).optional(),
   missingInfo: z.object({ prompt: z.string() }).optional(),
+  stage: z
+    .object({
+      id: z.enum(["first_dm", "new", "talking", "close"]),
+      plan: z.string().describe("One short line: what to aim for over the next few messages at this stage"),
+    })
+    .optional(),
 });
 export const OpenersOut = z.object({ openers: z.array(Suggestion), hooks: z.array(z.string()), safety: Safety });
 export const ChatOut = z.object({

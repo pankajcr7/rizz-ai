@@ -1,4 +1,4 @@
-import { TONES, type Goal, type Platform, type ToneId } from "@rizz/shared";
+import { STAGES, TONES, type Goal, type Platform, type StageId, type ToneId } from "@rizz/shared";
 
 export const TONE_OPTIONS = (Object.keys(TONES) as ToneId[]).map((id) => ({
   id,
@@ -7,6 +7,12 @@ export const TONE_OPTIONS = (Object.keys(TONES) as ToneId[]).map((id) => ({
 
 /** Shorter list for the live overlay panel. */
 export const LIVE_TONES: ToneId[] = ["smooth", "flirty", "funny", "witty", "sweet", "confident", "chill", "deep"];
+
+/** "How well do you know them?" — changes how replies keep the chat going. */
+export const STAGE_OPTIONS: { id: StageId; label: string }[] = (Object.keys(STAGES) as StageId[]).map((id) => ({
+  id,
+  label: `${STAGES[id].emoji} ${STAGES[id].label}`,
+}));
 
 export const GOAL_OPTIONS: { id: Goal; label: string }[] = [
   { id: "keep_going", label: "💬 Keep it going" },

@@ -23,7 +23,7 @@ const TONES: { id: ToneId; label: string }[] = [
 ];
 
 export default function ChatHelp() {
-  const { draftChat, setDraftChat, setDraftMeta, replyDraft, setReplyDraft, platform, theirName, defaultTone, setDefaultTone, prefs, goal, history } = useApp();
+  const { draftChat, setDraftChat, setDraftMeta, replyDraft, setReplyDraft, platform, theirName, defaultTone, setDefaultTone, prefs, goal, stage, history } = useApp();
   const crush = useCrushes((s) => s.crushes.find((c) => c.id === s.activeId));
   const run = useSession((s) => s.run);
   const [scanBusy, setScanBusy] = useState(false);
@@ -62,7 +62,7 @@ export default function ChatHelp() {
   };
   const generate = () => {
     void run({ kind: "reply", crushId: crush?.id, req: {
-      platform: crush?.platform ?? platform, messages: draftChat, tone: defaultTone, goal,
+      platform: crush?.platform ?? platform, messages: draftChat, tone: defaultTone, goal, stage,
       theirName: crush?.name ?? theirName, notes: crush?.notes || undefined,
       memory: crush?.facts.length ? crush.facts : undefined, draft: replyDraft.trim() || undefined, prefs,
     } });

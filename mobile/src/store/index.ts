@@ -6,7 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { api } from "../api/client";
-import type { ChatMessage, ChatResponse, Goal, PersonaId, Platform, Preferences, QuotaInfo, ReferralInfo, SuggestResponse, ToneId } from "@rizz/shared";
+import type { ChatMessage, ChatResponse, Goal, PersonaId, Platform, Preferences, QuotaInfo, ReferralInfo, StageId, SuggestResponse, ToneId } from "@rizz/shared";
 
 export type ChatMode = "coach" | "practice";
 export interface ChatItem {
@@ -57,6 +57,8 @@ interface State {
   chatMode: ChatMode;
   /** Last-used vibe settings, so the Reply screen starts where you left off. */
   goal: Goal;
+  /** How well the user knows them; "auto" lets the AI decide. */
+  stage: StageId;
   platform: Platform;
   theirName?: string;
 
@@ -80,6 +82,7 @@ interface State {
   setPersona: (p: PersonaId) => void;
   setChatMode: (m: ChatMode) => void;
   setGoal: (g: Goal) => void;
+  setStage: (s: StageId) => void;
   setPlatform: (p: Platform) => void;
   setDraftMeta: (m: { theirName?: string; platform?: Platform }) => void;
   resetAll: () => void;
@@ -102,6 +105,7 @@ const initial = {
   persona: "friendly" as PersonaId,
   chatMode: "coach" as ChatMode,
   goal: "keep_going" as Goal,
+  stage: "auto" as StageId,
   platform: "instagram" as Platform,
   theirName: undefined as string | undefined,
 };
@@ -154,6 +158,7 @@ export const useApp = create<State>()(
       setPersona: (persona) => set({ persona }),
       setChatMode: (chatMode) => set({ chatMode }),
       setGoal: (goal) => set({ goal }),
+      setStage: (stage) => set({ stage }),
       setPlatform: (platform) => set({ platform }),
       setDraftMeta: ({ theirName, platform }) => set((s) => ({ theirName, platform: platform ?? s.platform })),
       resetAll: () => set({ ...initial }),
