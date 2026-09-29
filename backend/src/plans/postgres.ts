@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS entitlements (
   subscribed boolean NOT NULL DEFAULT false,
   pro_until  timestamptz
 );
+CREATE TABLE IF NOT EXISTS accounts (
+  email         text PRIMARY KEY,
+  device_id     text NOT NULL UNIQUE,
+  password_hash text NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS referral_codes (
   code       text PRIMARY KEY,
   device_id  text NOT NULL UNIQUE

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 import {
   ChatRequestSchema,
   DatePlanRequestSchema,
@@ -15,7 +16,8 @@ import {
   type ApiErrorCode,
 } from "@rizz/shared";
 import { precheck, SAFETY_MESSAGES, mentionsMinor } from "../safety/guardrails.js";
-import { isValidDeviceId, issueToken, verifyToken } from "../plans/auth.js";
+import { isValidDeviceId, issueAccountToken, issueToken, verifySession } from "../plans/auth.js";
+import { checkPassword, hashPassword, MemoryAccounts, type AccountStore } from "../plans/accounts.js";
 import type { EntitlementStore, QuotaStore } from "../plans/quota.js";
 import { MAX_REWARDED_INVITES, referralCode, type ReferralStore } from "../plans/referrals.js";
 import type { RizzAI } from "../ai/types.js";
@@ -33,6 +35,7 @@ export interface Deps {
   /** Speech-to-text for voice practice; optional (needs a Groq key). */
   transcriber?: Transcriber;
   tokenSecret: string;
+  accounts?: AccountStore;
   webhookSecret?: string;
 }
 
@@ -49,6 +52,8 @@ function safeEqual(a: string, b: string) {
 
 export async function v1Routes(app: FastifyInstance, deps: Deps) {
   const { ai, quota, extractQuota, chatQuota, entitlements, referrals, tokenSecret } = deps;
+  const accounts = deps.accounts ?? new MemoryAccounts();
+  const credentials = z.object({ email: z.string().trim().toLowerCase().email().max(254), password: z.string().min(10).max(128) });
 
   async function referralInfo(deviceId: string): Promise<ReferralInfo> {
     const code = referralCode(deviceId, tokenSecret);
@@ -63,12 +68,15 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
   }
 
   /** Resolve the device from the bearer token, or reply 401. */
-  function auth(req: FastifyRequest, reply: FastifyReply): string | null {
+  async function auth(req: FastifyRequest, reply: FastifyReply): Promise<string | null> {
     const header = req.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
-    const deviceId = verifyToken(token, tokenSecret);
-    if (!deviceId) sendError(reply, 401, "unauthorized", "Missing or invalid session token");
-    return deviceId;
+    const session = verifySession(token, tokenSecret);
+    if (!session || (session.kind === "guest" && await accounts.isClaimed(session.deviceId))) {
+      sendError(reply, 401, "unauthorized", "Missing or invalid session token");
+      return null;
+    }
+    return session.deviceId;
   }
 
   /**
@@ -110,18 +118,39 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
   app.post("/v1/session", { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } }, async (req, reply) => {
     const deviceId = (req.body as { deviceId?: unknown } | undefined)?.deviceId;
     if (!isValidDeviceId(deviceId)) return sendError(reply, 400, "invalid_request", "deviceId must be 16-64 url-safe chars");
+    if (await accounts.isClaimed(deviceId)) return sendError(reply, 401, "unauthorized", "Log in to use this account");
     return { token: issueToken(deviceId, tokenSecret) };
   });
 
+  app.post("/v1/account/signup", { config: { rateLimit: { max: 5, timeWindow: "1 hour" } } }, async (req, reply) => {
+    const token = req.headers.authorization?.replace(/^Bearer /, "");
+    const session = verifySession(token, tokenSecret);
+    if (!session || session.kind !== "guest" || await accounts.isClaimed(session.deviceId))
+      return sendError(reply, 401, "unauthorized", "Start a guest session before creating an account");
+    const { email, password } = credentials.parse(req.body);
+    const passwordHash = await hashPassword(password);
+    if (!(await accounts.register({ email, deviceId: session.deviceId, passwordHash })))
+      return sendError(reply, 409, "invalid_request", "This email or device already has an account");
+    return { token: issueAccountToken(session.deviceId, tokenSecret), deviceId: session.deviceId, email };
+  });
+
+  app.post("/v1/account/login", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (req, reply) => {
+    const { email, password } = credentials.parse(req.body);
+    const account = await accounts.byEmail(email);
+    if (!(await checkPassword(password, account?.passwordHash ?? null)))
+      return sendError(reply, 401, "unauthorized", "Email or password is incorrect");
+    return { token: issueAccountToken(account!.deviceId, tokenSecret), deviceId: account!.deviceId, email: account!.email };
+  });
+
   app.get("/v1/me", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const plan = await entitlements.getPlan(deviceId);
     return { quota: await quota.peek(deviceId, plan), referral: await referralInfo(deviceId), features: { voice: !!deps.transcriber } };
   });
 
   app.post("/v1/suggest", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = SuggestRequestSchema.parse(req.body);
 
@@ -140,7 +169,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
   });
 
   app.post("/v1/openers", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = OpenersRequestSchema.parse(req.body);
     if (body.bio && mentionsMinor([body.bio])) return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
@@ -155,7 +184,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
   // screenshot doesn't cost a reply) with a tighter burst limit, because
   // vision requests are the most expensive.
   app.post("/v1/extract", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = ExtractRequestSchema.parse(req.body);
     const result = await metered(deviceId, reply, () => ai.extract(body.image, body.platformHint), extractQuota);
@@ -168,7 +197,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
   // Chat mode: wingman coach or practice-with-a-match.
   app.post("/v1/chat", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = ChatRequestSchema.parse(req.body);
     // Only the user's own turns are checked; assistant turns are our output.
@@ -182,7 +211,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
   // Profile review: score the user's own photos + bio. One reply credit.
   app.post("/v1/profile-review", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = ProfileReviewRequestSchema.parse(req.body);
     if (mentionsMinor([body.bio ?? "", body.prefs.aboutMe ?? ""])) {
@@ -194,7 +223,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
   // Date planner: 3 ideas + the message to ask them out. One reply credit.
   app.post("/v1/date-plan", async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const body = DatePlanRequestSchema.parse(req.body);
     const texts = [...body.messages.map((m) => m.text), ...(body.memory ?? []), body.prefs.aboutMe ?? ""];
@@ -205,7 +234,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
   // Voice practice: speech → text. Uses the chat allowance.
   app.post("/v1/transcribe", { bodyLimit: 6 * 1024 * 1024 }, async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const transcriber = deps.transcriber;
     if (!transcriber) return sendError(reply, 501, "not_supported", "Voice isn't set up on this server (needs GROQ_API_KEY).");
@@ -218,7 +247,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
   // Referrals: redeem a friend's code → both get Pro days.
   app.post("/v1/referral/redeem", { config: { rateLimit: { max: 10, timeWindow: "1 hour" } } }, async (req, reply) => {
-    const deviceId = auth(req, reply);
+    const deviceId = await auth(req, reply);
     if (!deviceId) return reply;
     const { code } = RedeemRequestSchema.parse(req.body);
     const owner = await referrals.owner(code);

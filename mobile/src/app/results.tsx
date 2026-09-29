@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import type { ChatMessage, ProfileReviewResponse, SuggestResponse } from "@rizz/shared";
+import { SwipeReplyCards } from "../components/SwipeReplyCards";
 import { ReplyCard } from "../components/ReplyCard";
 import { LoadingLines, Skeleton, SkeletonCard } from "../components/Skeleton";
 import { ToneStrip } from "../components/ToneStrip";
@@ -168,9 +169,7 @@ export default function Results() {
           ) : (
             <>
               <Section title="Three ways to say it">
-                {reply.suggestions.map((s, i) => (
-                  <ReplyCard key={s.text} text={s.text} why={s.why} tone={tone} onSent={onSent} index={i} />
-                ))}
+                <SwipeReplyCards items={reply.suggestions} tone={tone} onSent={onSent} />
               </Section>
               <Section title="Adjust this reply">
                 <View style={styles.wrap}>
@@ -226,9 +225,7 @@ export default function Results() {
             </Section>
           ) : null}
           <Section title="Openers">
-            {opener.openers.map((o, i) => (
-              <ReplyCard key={o.text} text={o.text} why={o.why} tone={tone} index={i} />
-            ))}
+            <SwipeReplyCards items={opener.openers} tone={tone} />
           </Section>
         </View>
       ) : null}

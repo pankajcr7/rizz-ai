@@ -1,7 +1,6 @@
 /**
- * Anonymous device sessions. No sign-up: the app generates a random device id,
- * exchanges it for a signed token, and sends that token on every request.
- * Tokens are HMAC-signed so the server stays stateless.
+ * Signed guest and account sessions. The account token keeps the original
+ * device identity so quotas and purchases survive guest-to-account upgrade.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 
@@ -16,12 +15,16 @@ function sign(payload: string, secret: string): string {
 }
 
 export function issueToken(deviceId: string, secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ d: deviceId, iat: Date.now() })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ d: deviceId, k: "guest", iat: Date.now() })).toString("base64url");
   return `${payload}.${sign(payload, secret)}`;
 }
 
-/** Returns the device id, or null for a missing, malformed or forged token. */
-export function verifyToken(token: string | undefined, secret: string): string | null {
+export function issueAccountToken(deviceId: string, secret: string): string {
+  const payload = Buffer.from(JSON.stringify({ d: deviceId, k: "account", iat: Date.now() })).toString("base64url");
+  return `${payload}.${sign(payload, secret)}`;
+}
+
+export function verifySession(token: string | undefined, secret: string): { deviceId: string; kind: "guest" | "account" } | null {
   if (!token) return null;
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
@@ -29,9 +32,18 @@ export function verifyToken(token: string | undefined, secret: string): string |
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const { d } = JSON.parse(Buffer.from(payload, "base64url").toString());
-    return isValidDeviceId(d) ? d : null;
+    const { d, k, iat } = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (!isValidDeviceId(d)) return null;
+    const kind = k === "account" ? "account" : k === "guest" || k == null ? "guest" : null;
+    if (!kind) return null;
+    if (kind === "account" && (typeof iat !== "number" || iat > Date.now() + 60_000 || Date.now() - iat > 90 * 86_400_000)) return null;
+    return { deviceId: d, kind };
   } catch {
     return null;
   }
+}
+
+/** Returns the device id, or null for a missing, malformed or forged token. */
+export function verifyToken(token: string | undefined, secret: string): string | null {
+  return verifySession(token, secret)?.deviceId ?? null;
 }

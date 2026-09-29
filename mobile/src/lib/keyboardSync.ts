@@ -7,7 +7,7 @@ import { RizzOverlay } from "../../modules/rizz-overlay";
 import { API_URL, getSessionToken } from "../api/client";
 import { useApp } from "../store";
 
-async function push() {
+export async function syncKeyboard() {
   if (!RizzOverlay.available) return;
   try {
     const token = await getSessionToken();
@@ -21,8 +21,8 @@ async function push() {
 /** Call once at startup; re-syncs whenever tone or preferences change. */
 export function startKeyboardSync(): () => void {
   if (!RizzOverlay.available) return () => {};
-  void push();
+  void syncKeyboard();
   return useApp.subscribe((s, prev) => {
-    if (s.defaultTone !== prev.defaultTone || s.prefs !== prev.prefs) void push();
+    if (s.defaultTone !== prev.defaultTone || s.prefs !== prev.prefs) void syncKeyboard();
   });
 }

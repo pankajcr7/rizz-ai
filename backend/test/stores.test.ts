@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { migrate, PgEntitlements, PgQuota, PgReferrals, type Db } from "../src/plans/postgres.js";
 import { EXTRACT_LIMITS, MemoryEntitlements, MemoryQuota, type EntitlementStore, type QuotaStore } from "../src/plans/quota.js";
 import { MemoryReferrals, type ReferralStore } from "../src/plans/referrals.js";
+import { MemoryAccounts, PgAccounts } from "../src/plans/accounts.js";
 
 interface Stores {
   quota: QuotaStore;
@@ -30,6 +31,21 @@ const impls: [string, () => Promise<Stores>][] = [
 
 const day = new Date("2026-09-26T10:00:00Z");
 const D = "device_aaaaaaaaaaaaaaaa";
+
+describe.each([
+  ["memory", async () => new MemoryAccounts()],
+  ["postgres", async () => { const db = new PGlite() as unknown as Db; await migrate(db); return new PgAccounts(db); }],
+] as const)("%s accounts", (_name, make) => {
+  it("rejects duplicate email and device identities", async () => {
+    const accounts = await make();
+    const first = { email: "one@example.com", deviceId: D, passwordHash: "hash" };
+    expect(await accounts.register(first)).toBe(true);
+    expect(await accounts.register({ ...first, deviceId: "device_bbbbbbbbbbbbbbbb" })).toBe(false);
+    expect(await accounts.register({ ...first, email: "two@example.com" })).toBe(false);
+    expect(await accounts.isClaimed(D)).toBe(true);
+    expect(await accounts.byEmail(first.email)).toEqual(first);
+  });
+});
 
 describe.each(impls)("%s stores", (_name, make) => {
   let s: Stores;

@@ -1,21 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform, Share as RNShare, StyleSheet, Switch, View } from "react-native";
 import { levelFor, liveStreak, TONES, type Preferences } from "@rizz/shared";
 import { useCrushes } from "../../store/crushes";
 import { useProgress } from "../../store/progress";
+import { useSession } from "../../store/session";
+import { useShare } from "../../store/share";
+import { useOpenerDraft, useProfileDraft } from "../../store/drafts";
 import { RizzOverlay } from "../../../modules/rizz-overlay";
 import * as Clipboard from "expo-clipboard";
-import { api, errorMessage } from "../../api/client";
+import { account, api, errorMessage, getDeviceId } from "../../api/client";
 import { toast } from "../../components/Toast";
 import { inviteText } from "../../lib/invite";
 import { Sheet } from "../../components/Sheet";
 import { ToneStrip } from "../../components/ToneStrip";
-import { Button, Card, ChipRow, GradientBorder, Header, Input, ListGroup, ListRow, Notice, Screen, Section, T } from "../../components/ui";
+import { Button, Card, ChipRow, GradientBorder, Input, ListGroup, ListRow, Notice, Screen, Section, T } from "../../components/ui";
 import { boldLabel, LANGUAGES } from "../../components/Vibe";
-import { secureStorage } from "../../lib/secureStorage";
+import { BrandHeader } from "../../components/BrandHeader";
+import { identifyPurchases } from "../../lib/purchasesIdentity";
 import { useApp } from "../../store";
 import { colors, font, space } from "../../theme";
 
@@ -35,6 +39,8 @@ const EMOJIS = [
 export default function Me() {
   const { prefs, setPrefs, defaultTone, setDefaultTone, saveHistory, setSaveHistory, quota, referral, setReferral, refreshMe, resetAll } = useApp();
   const [sheet, setSheet] = useState<SheetId>(null);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => { void account.email().then(setAccountEmail); }, []));
   const [about, setAbout] = useState(prefs.aboutMe ?? "");
   const [styleText, setStyleText] = useState((prefs.styleExamples ?? []).join("\n"));
   const pro = quota?.plan === "pro";
@@ -85,22 +91,47 @@ export default function Me() {
 
   const confirmDelete = () => {
     const run = async () => {
-      await secureStorage.remove("rizz.token");
+      await account.signOut();
+      useSession.getState().reset();
+      useShare.setState({ card: null });
+      RizzOverlay.stop();
+      RizzOverlay.keyboard.clearConfig();
+      RizzOverlay.smart.setApps([]);
+      await identifyPurchases(await getDeviceId()).catch(() => {});
       resetAll();
       RizzOverlay.smart.clearConversations();
       useCrushes.setState({ crushes: [], activeId: null });
       useProgress.getState().reset();
+      useOpenerDraft.setState({ openerImage: null, openerBio: "" });
+      useProfileDraft.setState({ images: [], bio: "", roast: false });
       router.replace("/onboarding");
     };
     // Alert with buttons isn't supported on web.
     if (Platform.OS === "web") {
-      if (globalThis.confirm?.("Delete all your saved replies, history, crush profiles, progress and settings from this device?")) void run();
+      if (globalThis.confirm?.("Delete saved replies, chats, progress and settings from this device? Your email account stays available for login.")) void run();
       return;
     }
-    Alert.alert("Delete all data?", "Removes your saved replies, history, crush profiles, progress and settings from this phone.", [
+    Alert.alert("Delete local data?", "Removes saved replies, chats, progress and settings from this phone. Your email account stays available for login.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => void run() },
     ]);
+  };
+
+  const signOut = async () => {
+    await account.signOut();
+    useSession.getState().reset();
+    useShare.setState({ card: null });
+    RizzOverlay.stop();
+    RizzOverlay.keyboard.clearConfig();
+    RizzOverlay.smart.setApps([]);
+    await identifyPurchases(await getDeviceId()).catch(() => {});
+    resetAll();
+    RizzOverlay.smart.clearConversations();
+    useCrushes.setState({ crushes: [], activeId: null });
+    useProgress.getState().reset();
+    useOpenerDraft.setState({ openerImage: null, openerBio: "" });
+    useProfileDraft.setState({ images: [], bio: "", roast: false });
+    router.replace("/auth");
   };
 
   const close = () => setSheet(null);
@@ -108,7 +139,16 @@ export default function Me() {
 
   return (
     <Screen>
-      <Header title="You" subtitle="Your edge, in one place." />
+      <BrandHeader subtitle="Your edge, in one place." />
+      <T v="display" style={{ marginBottom: space(5) }}>Your profile.</T>
+      <Section title="Account">
+        <Card style={{ marginBottom: space(3) }}><T v="headline">{accountEmail || "Guest mode"}</T><T v="small" color={colors.textDim} style={{ marginTop: space(1) }}>{accountEmail ? "Your plan is linked to this email. Chats stay on this phone." : "Create an account to keep your plan across devices."}</T></Card>
+        {accountEmail ? <Button title="Log out" variant="secondary" icon="log-out-outline" onPress={() => void signOut()} /> : <Button title="Sign up or log in" icon="person-add-outline" onPress={() => router.push("/auth")} />}
+      </Section>
+      <Section title="Your stuff"><ListGroup>
+        <ListRow icon="bookmark-outline" title="Saved replies" onPress={() => router.push("/saved")} />
+        <ListRow icon="images-outline" title="Review my dating profile" onPress={() => router.push("/profile-review")} last />
+      </ListGroup></Section>
 
       {/* Plan */}
       {pro ? (
@@ -240,7 +280,7 @@ export default function Me() {
             title="Keep history"
             right={<Switch value={saveHistory} onValueChange={setSaveHistory} trackColor={{ true: colors.pink, false: colors.surface3 }} thumbColor="#fff" {...({ activeThumbColor: "#fff" } as object)} />}
           />
-          <ListRow icon="trash-outline" title="Delete all my data" danger onPress={confirmDelete} last />
+          <ListRow icon="trash-outline" title="Delete local data" danger onPress={confirmDelete} last />
         </ListGroup>
       </Section>
 

@@ -12,6 +12,7 @@ declare class RizzOverlayNative extends NativeModule<RizzOverlayModuleEvents> {
   showPanel(json: string): boolean;
   hidePanel(): void;
   setKeyboardConfig(json: string): void;
+  clearKeyboardConfig(): void;
   isKeyboardEnabled(): boolean;
   isKeyboardSelected(): boolean;
   openKeyboardSettings(): void;
@@ -42,6 +43,7 @@ export const RizzOverlay = {
 
   keyboard: {
     setConfig: (c: { apiUrl: string; token: string; tone: string; language: string; boldness: number }) => native?.setKeyboardConfig(JSON.stringify(c)),
+    clearConfig: () => native?.clearKeyboardConfig(),
     isEnabled: () => native?.isKeyboardEnabled() ?? false,
     isSelected: () => native?.isKeyboardSelected() ?? false,
     openSettings: () => native?.openKeyboardSettings(),

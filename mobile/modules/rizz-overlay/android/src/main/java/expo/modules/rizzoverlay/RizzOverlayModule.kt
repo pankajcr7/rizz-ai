@@ -116,6 +116,10 @@ class RizzOverlayModule : Module() {
       KeyboardConfig.save(context, json)
     }
 
+    Function("clearKeyboardConfig") {
+      KeyboardConfig.clear(context)
+    }
+
     Function("isKeyboardEnabled") {
       val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
       imm.enabledInputMethodList.any { it.packageName == context.packageName && it.serviceName.endsWith("RizzKeyboardService") }

@@ -68,6 +68,22 @@ describe("API", () => {
     auth = { authorization: `Bearer ${res.json().token}` };
   });
 
+  it("creates an account from a guest, keeps its plan identity, and rejects password bypass", async () => {
+    const signup = await app.inject({ method: "POST", url: "/v1/account/signup", headers: auth, payload: { email: " ME@Example.com ", password: "correct horse battery staple" } });
+    expect(signup.statusCode).toBe(200);
+    expect(signup.json()).toMatchObject({ deviceId: DEVICE, email: "me@example.com" });
+    const accountAuth = { authorization: `Bearer ${signup.json().token}` };
+    expect((await app.inject({ method: "GET", url: "/v1/me", headers: accountAuth })).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/v1/me", headers: auth })).statusCode).toBe(401);
+    expect((await app.inject({ method: "POST", url: "/v1/session", payload: { deviceId: DEVICE } })).statusCode).toBe(401);
+    const wrong = await app.inject({ method: "POST", url: "/v1/account/login", payload: { email: "me@example.com", password: "wrong password here" } });
+    expect(wrong.statusCode).toBe(401);
+    const login = await app.inject({ method: "POST", url: "/v1/account/login", payload: { email: "me@example.com", password: "correct horse battery staple" } });
+    expect(login.statusCode).toBe(200);
+    expect(login.json().deviceId).toBe(DEVICE);
+    expect((await app.inject({ method: "POST", url: "/v1/account/signup", headers: accountAuth, payload: { email: "next@example.com", password: "correct horse battery staple" } })).statusCode).toBe(401);
+  });
+
   it("allows CORS from the local web dev server only", async () => {
     const ok = await app.inject({ method: "OPTIONS", url: "/v1/suggest", headers: { origin: "http://localhost:8081", "access-control-request-method": "POST" } });
     expect(ok.headers["access-control-allow-origin"]).toBe("http://localhost:8081");

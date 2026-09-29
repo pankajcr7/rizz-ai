@@ -1,6 +1,5 @@
 /**
- * Typed client for the Rizz AI backend. Handles the anonymous device session
- * transparently: first call creates a device id + token, 401s refresh it.
+ * Typed client for guest and email accounts. Sessions live in SecureStore.
  */
 import { Platform } from "react-native";
 import * as Crypto from "expo-crypto";
@@ -33,6 +32,8 @@ export const API_URL =
 
 const DEVICE_KEY = "rizz.deviceId";
 const TOKEN_KEY = "rizz.token";
+const ACCOUNT_KEY = "rizz.accountEmail";
+export type AccountSession = { token: string; deviceId: string; email: string };
 
 export class RizzApiError extends Error {
   constructor(
@@ -73,6 +74,7 @@ async function getToken(forceRefresh = false): Promise<string> {
     const saved = await secureStorage.get(TOKEN_KEY);
     if (saved) return saved;
   }
+  if (await secureStorage.get(ACCOUNT_KEY)) throw new RizzApiError("unauthorized", "Please log in again to continue.", 401);
   // De-duplicate concurrent refreshes.
   tokenPromise ??= fetchToken().finally(() => (tokenPromise = null));
   return tokenPromise;
@@ -108,6 +110,10 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown, 
   });
 
   if (res.status === 401 && !retried) {
+    if (await secureStorage.get(ACCOUNT_KEY)) {
+      await secureStorage.remove(TOKEN_KEY);
+      throw new RizzApiError("unauthorized", "Please log in again to continue.", 401);
+    }
     await getToken(true);
     return request<T>(method, path, body, true);
   }
@@ -117,6 +123,34 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown, 
   }
   return (await res.json()) as T;
 }
+
+async function accountRequest(path: string, body: { email: string; password: string }, guestToken?: string): Promise<AccountSession> {
+  const res = await timedFetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(guestToken ? { authorization: `Bearer ${guestToken}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as ApiError | null;
+    throw new RizzApiError(err?.error.code ?? "internal", err?.error.message ?? "Couldn't access your account", res.status);
+  }
+  const account = (await res.json()) as AccountSession;
+  await secureStorage.set(DEVICE_KEY, account.deviceId);
+  await secureStorage.set(TOKEN_KEY, account.token);
+  await secureStorage.set(ACCOUNT_KEY, account.email);
+  tokenPromise = null;
+  return account;
+}
+
+export const account = {
+  email: () => secureStorage.get(ACCOUNT_KEY),
+  signUp: async (email: string, password: string) => accountRequest("/v1/account/signup", { email, password }, await getToken()),
+  logIn: (email: string, password: string) => accountRequest("/v1/account/login", { email, password }),
+  signOut: async () => {
+    await Promise.all([secureStorage.remove(ACCOUNT_KEY), secureStorage.remove(TOKEN_KEY), secureStorage.remove(DEVICE_KEY)]);
+    tokenPromise = null;
+  },
+};
 
 export const api = {
   suggest: (body: SuggestRequest) => request<SuggestResponse>("POST", "/v1/suggest", body),

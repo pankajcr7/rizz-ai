@@ -26,7 +26,7 @@ export function ChatPreview({ messages, onChange, max = 8 }: { messages: ChatMes
             onLongPress={() => onChange(messages.filter((_, j) => j !== index))}
             style={[styles.bubble, mine ? styles.me : styles.them]}
           >
-            <T v="body" color={mine ? colors.bg : colors.text}>
+            <T v="body" color={colors.text}>
               {m.text}
             </T>
           </Pressable>
