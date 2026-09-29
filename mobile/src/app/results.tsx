@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import type { ChatMessage, ProfileReviewResponse, SuggestResponse } from "@rizz/shared";
+import { STAGES, type ChatMessage, type ProfileReviewResponse, type SuggestResponse } from "@rizz/shared";
 import { SwipeReplyCards } from "../components/SwipeReplyCards";
 import { ReplyCard } from "../components/ReplyCard";
 import { LoadingLines, Skeleton, SkeletonCard } from "../components/Skeleton";
@@ -140,6 +140,7 @@ export default function Results() {
         <View>
           {reply.safety.flag !== "none" ? <Notice text={reply.safety.message} tone="warn" /> : null}
           <NextMoveCard reply={reply} messages={job.req.messages} />
+          {reply.stage ? <StageCard stage={reply.stage} /> : null}
           <View style={{ marginBottom: space(3) }}>
             <VibeGauge vibe={reply.vibe} />
           </View>
@@ -254,6 +255,26 @@ function NextMoveCard({ reply, messages }: { reply: SuggestResponse; messages: C
   }[move.action];
   return (
     <Notice text={`${config.title} — ${move.reason}`} tone={config.tone} icon={config.icon} />
+  );
+}
+
+/** Where this chat is (first DM → close) and what to aim for next. */
+function StageCard({ stage }: { stage: NonNullable<SuggestResponse["stage"]> }) {
+  const s = STAGES[stage.id];
+  return (
+    <Card style={{ marginBottom: space(3) }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space(3) }}>
+        <T style={{ fontSize: 26 }}>{s.emoji}</T>
+        <View style={{ flex: 1 }}>
+          <T v="bodyStrong">
+            Stage: <T v="bodyStrong" color={colors.pink}>{s.label}</T>
+          </T>
+          <T v="small" color={colors.textDim}>
+            Game plan: {stage.plan}
+          </T>
+        </View>
+      </View>
+    </Card>
   );
 }
 

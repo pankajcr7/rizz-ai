@@ -6,7 +6,7 @@
  * Tone chips and "New ideas" re-run with the last capture.
  */
 import { router } from "expo-router";
-import { chatStats, mostCommon, statsLine, stitchFrames, TONES, type ChatMessage, type ChatTurn, type Platform, type ToneId } from "@rizz/shared";
+import { chatStats, mostCommon, STAGES, statsLine, stitchFrames, TONES, type ChatMessage, type ChatTurn, type Platform, type ToneId } from "@rizz/shared";
 import { RizzOverlay, type CapturedChat, type PanelState } from "../../modules/rizz-overlay";
 import { api, RizzApiError } from "../api/client";
 import { useApp } from "../store";
@@ -85,7 +85,8 @@ async function run(tone: ToneId) {
       vibe: result.vibe,
       stats: chat.wholeChat ? statsLine(chatStats(chat.messages)) : undefined,
       safety: result.safety,
-      coachTip: result.coachTip,
+      // The panel shows one tip line: lead with where the chat is and what to aim for.
+      coachTip: result.stage ? `${STAGES[result.stage.id].emoji} ${STAGES[result.stage.id].label}: ${result.stage.plan}` : result.coachTip,
       wholeChat: chat.wholeChat,
     };
     RizzOverlay.showPanel(lastResult);

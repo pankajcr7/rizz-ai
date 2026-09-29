@@ -53,6 +53,22 @@ export const GoalSchema = z.enum([
 ]);
 export type Goal = z.infer<typeof GoalSchema>;
 
+/**
+ * How well the two people know each other. It decides the strategy: a cold
+ * first DM needs easy hooks and curiosity; a close chat needs none of that.
+ */
+export const STAGES = {
+  auto: { label: "Auto", emoji: "✨", hint: "Rizz AI works it out from the chat" },
+  first_dm: { label: "First DM", emoji: "👋", hint: "They don't know you yet: cold DM, story reply, new match" },
+  new: { label: "Just started", emoji: "🌱", hint: "A few chats in, still getting to know each other" },
+  talking: { label: "Talking", emoji: "💬", hint: "You chat often, there's banter and inside jokes" },
+  close: { label: "Close", emoji: "💞", hint: "Flirting, dating, or you've met" },
+} as const;
+export type StageId = keyof typeof STAGES;
+export type DetectedStage = Exclude<StageId, "auto">;
+export const StageSchema = z.enum(Object.keys(STAGES) as [StageId, ...StageId[]]);
+export const DetectedStageSchema = z.enum(["first_dm", "new", "talking", "close"]);
+
 export const LanguageSchema = z.enum([
   "auto",
   "english",
@@ -99,6 +115,8 @@ export const SuggestRequestSchema = z.object({
   earlier: z.array(ChatMessageSchema).max(300).optional(),
   tone: ToneIdSchema,
   goal: GoalSchema.default("keep_going"),
+  /** How well they know each other; "auto" lets the model decide from the chat. */
+  stage: StageSchema.default("auto"),
   theirName: z.string().trim().max(60).optional(),
   /** Free-form context: "we matched yesterday, she likes hiking". */
   notes: z.string().trim().max(500).optional(),
@@ -150,6 +168,8 @@ export const SuggestResponseSchema = z.object({
   nextMove: z.object({ action: z.enum(["reply", "wait", "end"]), reason: z.string() }).optional(),
   /** Present when a useful reply needs a personal fact the model does not know. */
   missingInfo: z.object({ prompt: z.string() }).optional(),
+  /** The stage the chat is at, and what to aim for over the next few messages. */
+  stage: z.object({ id: DetectedStageSchema, plan: z.string() }).optional(),
 });
 export type SuggestResponse = z.infer<typeof SuggestResponseSchema>;
 

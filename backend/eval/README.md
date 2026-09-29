@@ -9,7 +9,7 @@ npm run eval:replies -- /absolute/path/replies.json
 Append fixture IDs to rerun selected cases (for example `bad-news unknown-answer`).
 The report is saved after each completed case so it can be reviewed during a run.
 
-This explicitly makes up to ten live requests using synthetic chats only. It
+This explicitly makes one live request per fixture using synthetic chats only. It
 uses the same provider, request validation, prompts and response normalization
 as reply generation. Calls are spaced 35 seconds apart to reduce rate limiting;
 the run stops on a provider failure and saves the partial report. It is not part

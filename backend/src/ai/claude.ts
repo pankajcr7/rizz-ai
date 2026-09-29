@@ -180,5 +180,6 @@ export function normalizeSuggest(out: z.infer<typeof SuggestOut>, count: number,
     memory: flag === "possible_minor" ? [] : cleanMemory(out.memory ?? []),
     nextMove: out.nextMove,
     missingInfo: out.missingInfo,
+    stage: out.stage?.plan.trim() ? { id: out.stage.id, plan: out.stage.plan.trim() } : undefined,
   };
 }
