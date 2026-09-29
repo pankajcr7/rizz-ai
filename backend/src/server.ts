@@ -6,6 +6,7 @@ import { cleanDatabaseUrl, describeDatabaseUrl } from "./plans/dbUrl.js";
 import { migrate, PgEntitlements, PgQuota, PgReferrals } from "./plans/postgres.js";
 import { CHAT_LIMITS, DAILY_LIMITS, EXTRACT_LIMITS, MemoryEntitlements, MemoryQuota } from "./plans/quota.js";
 import { MemoryReferrals } from "./plans/referrals.js";
+import { MemoryAccounts, PgAccounts } from "./plans/accounts.js";
 
 const env = cleanEnv(process.env);
 const production = env.NODE_ENV === "production";
@@ -50,6 +51,7 @@ if (env.DATABASE_URL) {
     process.exit(1);
   }
   stores = {
+    accounts: new PgAccounts(pool),
     quota: new PgQuota(pool, "reply", DAILY_LIMITS),
     extractQuota: new PgQuota(pool, "extract", EXTRACT_LIMITS),
     chatQuota: new PgQuota(pool, "chat", CHAT_LIMITS),
@@ -60,6 +62,7 @@ if (env.DATABASE_URL) {
 } else {
   if (production) console.warn("⚠️  No DATABASE_URL in production — quotas, Pro and referrals will reset on every restart.");
   stores = {
+    accounts: new MemoryAccounts(),
     quota: new MemoryQuota(),
     extractQuota: new MemoryQuota(EXTRACT_LIMITS),
     chatQuota: new MemoryQuota(CHAT_LIMITS),

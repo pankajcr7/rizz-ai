@@ -10,8 +10,6 @@ import { useEffect, useState } from "react";
 import { Platform, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import Purchases from "react-native-purchases";
-import { getDeviceId } from "../api/client";
 import { ToastHost } from "../components/Toast";
 import * as Notifications from "expo-notifications";
 import { startKeyboardSync } from "../lib/keyboardSync";
@@ -19,11 +17,7 @@ import { configureNotifications } from "../lib/nudges";
 import { startLiveBridge } from "../lib/liveBridge";
 import { useApp } from "../store";
 import { colors } from "../theme";
-
-const RC_KEY = Platform.select({
-  android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
-  ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
-});
+import { initializePurchases } from "../lib/purchasesIdentity";
 
 export default function RootLayout() {
   const [hydrated, setHydrated] = useState(useApp.persist.hasHydrated());
@@ -58,11 +52,7 @@ export default function RootLayout() {
   }, [hydrated]);
 
   useEffect(() => {
-    if (!RC_KEY) return; // subscriptions not configured (dev)
-    // RevenueCat's app user id = our device id, so webhooks can map purchases to quota.
-    getDeviceId()
-      .then((appUserID) => Purchases.configure({ apiKey: RC_KEY, appUserID }))
-      .catch(() => {});
+    void initializePurchases();
   }, []);
 
   if (!hydrated || !fontsLoaded) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
@@ -73,7 +63,9 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="auth" />
         <Stack.Screen name="results" />
+        <Stack.Screen name="profile-review" />
         <Stack.Screen name="live" />
         <Stack.Screen name="paywall" options={{ presentation: "modal" }} />
         <Stack.Screen name="share" options={{ presentation: "modal" }} />

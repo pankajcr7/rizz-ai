@@ -1,15 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect } from "expo-router";
 import { Tabs } from "expo-router/js-tabs";
-import type { ColorValue } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { IconName } from "../../components/ui";
 import { useApp } from "../../store";
 import { colors, font } from "../../theme";
 
 function tabIcon(outline: IconName, filled: IconName) {
-  function TabIcon({ focused, color }: { focused: boolean; color: ColorValue }) {
-    return <Ionicons name={focused ? filled : outline} size={22} color={color as string} />;
+  function TabIcon({ focused }: { focused: boolean }) {
+    return <View style={{ width: 54, height: 42, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: focused ? colors.lime : "transparent" }}>
+      <Ionicons name={focused ? filled : outline} size={23} color={focused ? colors.bg : colors.textDim} />
+    </View>;
   }
   return TabIcon;
 }
@@ -24,22 +26,25 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.bg,
-          borderTopColor: colors.border,
-          height: 66 + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: 7,
+          backgroundColor: colors.surface,
+          borderTopWidth: 0,
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          height: 78 + insets.bottom,
+          paddingBottom: insets.bottom + 3,
+          paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 11, lineHeight: 15, fontFamily: font.semibold },
-        tabBarActiveTintColor: colors.text,
-        tabBarInactiveTintColor: colors.textMute,
+        tabBarLabelStyle: { fontSize: 11, lineHeight: 16, fontFamily: font.bold },
+        tabBarActiveTintColor: colors.lime,
+        tabBarInactiveTintColor: colors.textDim,
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Reply", tabBarIcon: tabIcon("chatbubble-outline", "chatbubble") }} />
-      <Tabs.Screen name="chat" options={{ title: "Wingman", tabBarIcon: tabIcon("happy-outline", "happy") }} />
+      <Tabs.Screen name="index" options={{ title: "Chat Help", tabBarIcon: tabIcon("chatbubbles-outline", "chatbubbles") }} />
+      <Tabs.Screen name="openers" options={{ title: "Openers", tabBarIcon: tabIcon("bulb-outline", "bulb") }} />
+      <Tabs.Screen name="chat" options={{ title: "Coach", tabBarIcon: tabIcon("bar-chart-outline", "bar-chart") }} />
       <Tabs.Screen name="scan" options={{ href: null }} />
-      <Tabs.Screen name="saved" options={{ title: "Saved", tabBarIcon: tabIcon("bookmark-outline", "bookmark") }} />
-      <Tabs.Screen name="settings" options={{ title: "You", tabBarIcon: tabIcon("person-outline", "person") }} />
+      <Tabs.Screen name="saved" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ title: "Profile", tabBarIcon: tabIcon("person-outline", "person") }} />
     </Tabs>
   );
 }

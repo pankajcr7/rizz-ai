@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PRACTICE_PERSONAS, type PersonaId } from "@rizz/shared";
 import { api, errorMessage, RizzApiError } from "../../api/client";
 import { Sheet } from "../../components/Sheet";
+import { BrandHeader } from "../../components/BrandHeader";
 import { toast } from "../../components/Toast";
 import { Button, ChipRow, IconButton, Notice, Section, T } from "../../components/ui";
 import { LANGUAGES } from "../../components/Vibe";
@@ -45,6 +46,7 @@ export default function ChatScreen() {
   const [openFeedback, setOpenFeedback] = useState<number | null>(null);
   const scroll = useRef<ScrollView>(null);
   const items = chats[mode];
+  const xp = useProgress((s) => s.xp);
 
   const toEnd = () => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 60);
   useEffect(() => {
@@ -145,10 +147,15 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={70}>
+        <View style={{ paddingHorizontal: GUTTER }}><BrandHeader /></View>
+        {mode === "coach" ? <View style={styles.rizzBanner}>
+          <T style={styles.rizzCount}>{xp} <T style={{ fontSize: 39 }}>🔥</T> rizz</T>
+          <T style={styles.rizzSub}>KEEP COOKING</T>
+        </View> : null}
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <T v="title">{mode === "coach" ? "Wingman" : "Practice"}</T>
+            <T v="title">{mode === "coach" ? "Your coach" : "Practice"}</T>
             <T v="small" color={colors.textDim} style={{ marginTop: 2 }}>
               {mode === "coach" ? "Coach, not autopilot." : "Practice without the pressure."}
             </T>
@@ -227,7 +234,7 @@ export default function ChatScreen() {
             return (
               <View key={i} style={{ marginBottom: space(2) }}>
                 <Pressable onLongPress={() => copy(m.content)} accessibilityHint="Long-press to copy" style={[styles.bubble, mine ? styles.me : styles.them]}>
-                  <T v="body" color={mine ? colors.bg : colors.text} selectable>
+                  <T v="body" color={colors.text} selectable>
                     {m.content}
                   </T>
                 </Pressable>
@@ -344,7 +351,10 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", gap: space(2), paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(4) },
+  rizzBanner: { marginHorizontal: GUTTER, borderRadius: radius.xl, backgroundColor: colors.lime, minHeight: 114, alignItems: "center", justifyContent: "center", marginBottom: space(3) },
+  rizzCount: { fontFamily: font.extrabold, fontSize: 46, lineHeight: 53, letterSpacing: -1.7, color: colors.bg },
+  rizzSub: { fontFamily: font.bold, fontSize: 13, letterSpacing: 4, color: "#737D39" },
+  header: { flexDirection: "row", alignItems: "center", gap: space(2), paddingHorizontal: GUTTER, paddingTop: space(2), paddingBottom: space(3) },
   modePill: { height: 38, paddingHorizontal: space(3.5), borderRadius: radius.pill, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   match: { flexDirection: "row", alignItems: "center", gap: space(3), marginHorizontal: GUTTER, marginTop: space(1), padding: space(3), borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
@@ -358,7 +368,7 @@ const styles = StyleSheet.create({
   better: { flexDirection: "row", gap: space(2), alignItems: "flex-start", backgroundColor: colors.infoSoft, borderRadius: radius.sm, padding: space(2.5) },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textDim },
   suggestion: { paddingHorizontal: space(3.5), paddingVertical: space(2.5), borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: space(2), paddingHorizontal: GUTTER, paddingVertical: space(3), borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: space(2), paddingHorizontal: GUTTER, paddingVertical: space(3), backgroundColor: colors.bg },
   input: { flex: 1, backgroundColor: colors.surface, color: colors.text, borderRadius: 22, borderWidth: 1, borderColor: colors.border, paddingHorizontal: space(4), paddingTop: space(3), paddingBottom: space(3), fontSize: 15, fontFamily: font.medium, minHeight: 46, maxHeight: 120 },
   send: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
 });

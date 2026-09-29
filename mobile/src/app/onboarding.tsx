@@ -40,7 +40,7 @@ export default function Onboarding() {
     }
     setPrefs({ language });
     finish({ aboutMe: aboutMe.trim(), defaultTone: tone });
-    router.replace("/");
+    router.replace("/auth");
   };
 
   const footer =

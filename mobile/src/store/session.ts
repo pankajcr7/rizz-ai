@@ -20,6 +20,7 @@ export type ReplyAdjustment = "shorter" | "less_flirty" | "more_casual" | "more_
 export type StyleFeedback = NonNullable<Preferences["styleAvoid"]>[number];
 
 interface SessionState {
+  reset: () => void;
   job: Job | null;
   status: "idle" | "loading" | "done" | "error";
   reply?: SuggestResponse;
@@ -38,6 +39,7 @@ interface SessionState {
 let seq = 0;
 
 export const useSession = create<SessionState>((set, get) => ({
+  reset: () => { seq++; set({ job: null, status: "idle", reply: undefined, opener: undefined, profile: undefined, error: undefined }); },
   job: null,
   status: "idle",
 
