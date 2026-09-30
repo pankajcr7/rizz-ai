@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.os.Build
@@ -16,9 +17,9 @@ import android.view.WindowManager
 
 /**
  * Holds one MediaProjection for the lifetime of live mode. Android 14+ allows
- * only one VirtualDisplay per projection, so it is created once and frames are
- * read on demand. Nothing is recorded or stored: a frame is only copied out
- * when the user taps the bubble.
+ * only one VirtualDisplay per projection, so it is created once. The latest
+ * frame stays in memory until replaced; it is copied and read only when the
+ * user taps the bubble. Nothing is recorded to disk.
  */
 class ScreenCapturer(
   context: Context,
@@ -31,12 +32,24 @@ class ScreenCapturer(
   private val handler = Handler(thread.looper)
   private val reader: ImageReader
   private val display: VirtualDisplay
+  private val frameLock = Any()
+  private var latestImage: Image? = null
+  private var closed = false
 
   init {
     val (w, h, dpi) = realMetrics(context)
     width = w
     height = h
-    reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
+    // Keep one acquired image while leaving two slots for acquireLatestImage
+    // to discard older frames. Otherwise a full queue can stall the producer.
+    reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3)
+    reader.setOnImageAvailableListener({ source ->
+      val image = runCatching { source.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+      synchronized(frameLock) {
+        latestImage?.close()
+        if (closed) image.close() else latestImage = image
+      }
+    }, handler)
     // Must be registered before createVirtualDisplay on Android 14+.
     projection.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() = onStopped()
@@ -55,28 +68,27 @@ class ScreenCapturer(
   }
 
   /** Latest frame as a Bitmap, or null if nothing has been drawn yet. */
-  fun grab(): Bitmap? {
-    val image = reader.acquireLatestImage() ?: return null
+  fun grab(): Bitmap? = synchronized(frameLock) {
+    val image = latestImage ?: return@synchronized null
+    val plane = image.planes[0]
+    val rowPadding = plane.rowStride - plane.pixelStride * width
+    val padded = Bitmap.createBitmap(width + rowPadding / plane.pixelStride, height, Bitmap.Config.ARGB_8888)
     try {
-      val plane = image.planes[0]
-      val rowPadding = plane.rowStride - plane.pixelStride * width
-      val padded = Bitmap.createBitmap(width + rowPadding / plane.pixelStride, height, Bitmap.Config.ARGB_8888)
       padded.copyPixelsFromBuffer(plane.buffer)
-      if (rowPadding == 0) return padded
-      val cropped = Bitmap.createBitmap(padded, 0, 0, width, height)
-      padded.recycle()
-      return cropped
+      if (rowPadding == 0) return@synchronized padded
+      Bitmap.createBitmap(padded, 0, 0, width, height)
     } finally {
-      image.close()
+      if (rowPadding != 0) padded.recycle()
     }
   }
 
-  /** Drop any buffered frame so the next grab() reflects the screen after this call. */
-  fun discardPending() {
-    reader.acquireLatestImage()?.close()
-  }
-
   fun release() {
+    reader.setOnImageAvailableListener(null, null)
+    synchronized(frameLock) {
+      closed = true
+      latestImage?.close()
+      latestImage = null
+    }
     display.release()
     reader.close()
     projection.stop()
