@@ -244,18 +244,23 @@ class BubbleService : Service() {
   private fun captureAndRead() {
     val cap = capturer ?: return
     busy = true
+    val ignored = listOfNotNull(bubbleRect())
     bubble?.visibility = View.INVISIBLE // keep the bubble out of the screenshot
-    cap.discardPending()
-    main.postDelayed({
+    fun tryCapture(attempt: Int) {
+      if (capturer !== cap) return
       val bitmap = runCatching { cap.grab() }.getOrNull()
+      if (bitmap == null && attempt < 8) {
+        main.postDelayed({ tryCapture(attempt + 1) }, 180)
+        return
+      }
       bubble?.visibility = View.VISIBLE
       if (bitmap == null) {
         busy = false
-        showError("Couldn't read the screen", "Try again in a second.")
-        return@postDelayed
+        showError("Couldn't read the screen", "Screen sharing may have stopped. Turn Live mode off, then start it again.")
+        return
       }
       showLoading("Reading the chat…")
-      ChatOcr.parse(bitmap, emptyList(), { transcript ->
+      ChatOcr.parse(bitmap, ignored, { transcript ->
         bitmap.recycle()
         busy = false
         if (transcript.getJSONArray("messages").length() == 0) {
@@ -273,7 +278,17 @@ class BubbleService : Service() {
         busy = false
         showError("Couldn't read the text", err.message ?: "Try again.")
       })
-    }, 220)
+    }
+    main.postDelayed({ tryCapture(0) }, 220)
+  }
+
+  /** Ignore the floating bubble if Android captured a frame before it disappeared. */
+  private fun bubbleRect(): Rect? {
+    val view = bubble ?: return null
+    if (view.width == 0) return null
+    val location = IntArray(2)
+    view.getLocationOnScreen(location)
+    return Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
   }
 
   // ---------------------------------------------------------------------------
