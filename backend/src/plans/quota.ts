@@ -21,6 +21,7 @@ export const EXTRACT_LIMITS: Record<Plan, number | null> = { free: 25, pro: null
 export const CHAT_LIMITS: Record<Plan, number | null> = { free: 30, pro: null };
 
 export interface EntitlementStore {
+  forget?(deviceId: string): Promise<void>;
   /** "pro" if subscribed OR inside a time-limited Pro grant (e.g. referral). */
   getPlan(deviceId: string, now?: Date): Promise<Plan>;
   /** Subscription state from the billing webhook. */
@@ -31,6 +32,7 @@ export interface EntitlementStore {
 }
 
 export interface QuotaStore {
+  forget?(deviceId: string): Promise<void>;
   /** Atomically consume one unit. Returns usage info and whether it was allowed. */
   consume(deviceId: string, plan: Plan, now?: Date): Promise<{ allowed: boolean; info: QuotaInfo }>;
   /** Give a unit back (used when the AI call fails, so users aren't charged for errors). */
@@ -50,6 +52,7 @@ function nextUtcMidnight(now: Date): string {
 export class MemoryEntitlements implements EntitlementStore {
   private plans = new Map<string, Plan>();
   private grants = new Map<string, number>(); // deviceId → epoch ms
+  async forget(deviceId: string) { this.plans.delete(deviceId); this.grants.delete(deviceId); }
 
   async getPlan(deviceId: string, now = new Date()): Promise<Plan> {
     if (this.plans.get(deviceId) === "pro") return "pro";
@@ -72,6 +75,9 @@ export class MemoryEntitlements implements EntitlementStore {
 
 export class MemoryQuota implements QuotaStore {
   private used = new Map<string, number>();
+  async forget(deviceId: string) {
+    for (const key of this.used.keys()) if (key.endsWith(`:${deviceId}`)) this.used.delete(key);
+  }
 
   constructor(private limits: Record<Plan, number | null> = DAILY_LIMITS) {}
 

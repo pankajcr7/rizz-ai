@@ -4,7 +4,7 @@ import { createOpenAICompatAI, extractJson } from "../src/ai/openaiCompat.js";
 import { cleanEnv, createAIFromEnv, pickProvider, withFallback } from "../src/ai/providers.js";
 import { AiUnavailableError, type RizzAI } from "../src/ai/types.js";
 
-const suggestReq = SuggestRequestSchema.parse({ tone: "funny", messages: [{ from: "them", text: "hey" }] });
+const suggestReq = SuggestRequestSchema.parse({ tone: "funny", count: 1, messages: [{ from: "them", text: "hey" }] });
 
 const good = {
   suggestions: [{ text: "hey yourself 😄", why: "mirrors" }],
@@ -36,6 +36,32 @@ describe("extractJson", () => {
 });
 
 describe("createOpenAICompatAI", () => {
+  it("removes invented personal add-ons without spending another AI call", async () => {
+    const { fn, calls } = fakeFetch({ ...good, suggestions: [{ text: "I work in [fill-in] — keeps me busy.", why: "answer" }] }, { ...good, suggestions: [{ text: "I work in [fill-in]. What do you do?", why: "answer" }] });
+    const res = await createOpenAICompatAI(cfg(fn)).suggest(suggestReq, "none");
+    expect(calls).toHaveLength(1);
+    expect(res.suggestions[0]!.text).toBe("I work in [fill-in].");
+  });
+  it("requires evidence and a next step for coaching, independent of short-text settings", async () => {
+    const advice = { recommendation: "Wait for more conversation.", evidence: "Two messages are thin evidence.", nextStep: "Ask about their dog's personality.", example: "Is your dog a cuddler?", safety: { flag: "none", message: "" } };
+    const { fn, calls } = fakeFetch({ ...advice, evidence: "" }, advice);
+    const req = ChatRequestSchema.parse({ mode: "coach", prefs: { length: "short" }, turns: [{ role: "user", content: "Should I ask or wait?" }] });
+    const res = await createOpenAICompatAI(cfg(fn)).chat(req, "none");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.body.messages[1].content).not.toContain("Length: short");
+    expect(res.reply).toContain(advice.evidence);
+    expect(res.reply).toContain(advice.nextStep);
+    expect(res.reply).toContain(advice.example);
+    expect(res.feedback).toBeNull();
+  });
+  it("corrects an empty reply list even when the model asks for a missing fact", async () => {
+    const { fn, calls } = fakeFetch({ ...good, suggestions: [], missingInfo: { prompt: "What do you study?" } }, { ...good, suggestions: [{ text: "I study [fill-in], what about you?", why: "Answers honestly" }], missingInfo: { prompt: "What do you study?" } });
+    const res = await createOpenAICompatAI(cfg(fn)).suggest(suggestReq, "none");
+    expect(res.suggestions).toHaveLength(1);
+    expect(res.missingInfo).toBeDefined();
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.body.max_tokens).toBeLessThan(4000);
+  });
   it("sends JSON mode with the schema in the system prompt and parses the answer", async () => {
     const { fn, calls } = fakeFetch(good);
     const res = await createOpenAICompatAI(cfg(fn)).suggest(suggestReq, "none");

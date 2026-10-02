@@ -2,7 +2,7 @@
  * Pick the AI provider from environment variables.
  *
  *   AI_PROVIDER=groq | gemini | openrouter | claude | custom   (default: first one with a key, in that order)
- *   AI_FALLBACK=gemini                                          (optional: used when the primary is busy/down)
+ *   AI_FALLBACK=auto | none | provider                           (default: all configured backups)
  *
  * Free-tier notes (checked Sept 2026):
  *   groq       — free, no card, very fast; doesn't retain data by default. Best default.
@@ -14,6 +14,7 @@
 import { createClaudeAI } from "./claude.js";
 import { createOpenAICompatAI } from "./openaiCompat.js";
 import { AiUnavailableError, type RizzAI } from "./types.js";
+import { withCapacity } from "./capacity.js";
 
 type Env = Record<string, string | undefined>;
 
@@ -44,7 +45,7 @@ const PRESETS = {
   },
 } as const;
 
-function build(name: ProviderName, env: Env): RizzAI {
+function build(name: ProviderName, env: Env, primary = true): RizzAI {
   if (name === "claude") {
     if (!env.ANTHROPIC_API_KEY && !env.ANTHROPIC_AUTH_TOKEN) throw new Error("AI_PROVIDER=claude needs ANTHROPIC_API_KEY");
     return createClaudeAI({
@@ -71,20 +72,23 @@ function build(name: ProviderName, env: Env): RizzAI {
     baseURL: p.baseURL,
     apiKey,
     // Model ids change often on free tiers — override without a code change.
-    textModel: env.AI_TEXT_MODEL ?? p.textModel,
-    visionModel: env.AI_VISION_MODEL ?? p.visionModel,
+    textModel: env[`${name.toUpperCase()}_TEXT_MODEL`] ?? (primary ? env.AI_TEXT_MODEL : undefined) ?? p.textModel,
+    visionModel: env[`${name.toUpperCase()}_VISION_MODEL`] ?? (primary ? env.AI_VISION_MODEL : undefined) ?? p.visionModel,
   });
 }
 
 /** Retry on the fallback provider when the primary is rate-limited or down. */
 export function withFallback(primary: RizzAI, fallback: RizzAI): RizzAI {
+  let retryPrimaryAt = 0;
   const wrap =
     <A extends unknown[], R>(fn: (ai: RizzAI) => (...args: A) => Promise<R>) =>
     async (...args: A): Promise<R> => {
+      if (Date.now() < retryPrimaryAt) return fn(fallback)(...args);
       try {
         return await fn(primary)(...args);
       } catch (err) {
         if (!(err instanceof AiUnavailableError)) throw err;
+        retryPrimaryAt = Date.now() + 30_000;
         return fn(fallback)(...args);
       }
     };
@@ -107,7 +111,7 @@ export function pickProvider(env: Env): ProviderName | null {
   if (env.GROQ_API_KEY) return "groq";
   if (env.GEMINI_API_KEY) return "gemini";
   if (env.OPENROUTER_API_KEY) return "openrouter";
-  if (env.ANTHROPIC_API_KEY) return "claude";
+  if (env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN) return "claude";
   return null;
 }
 
@@ -117,7 +121,17 @@ export function createAIFromEnv(env: Env): { ai: RizzAI; description: string } {
     throw new Error("No AI key found. Set GROQ_API_KEY (free: https://console.groq.com/keys) in backend/.env");
   }
   const primary = build(primaryName, env);
-  const fallbackName = env.AI_FALLBACK?.trim().toLowerCase() as ProviderName | undefined;
-  if (!fallbackName || fallbackName === primaryName) return { ai: primary, description: primaryName };
-  return { ai: withFallback(primary, build(fallbackName, env)), description: `${primaryName} (fallback: ${fallbackName})` };
+  const setting = env.AI_FALLBACK?.trim().toLowerCase();
+  const available: ProviderName[] = ["groq", "gemini", "openrouter", "claude"];
+  const hasKey = (name: ProviderName) => name === "claude" ? !!(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN) : !!env[PRESETS[name as keyof typeof PRESETS]?.keyVar ?? "AI_API_KEY"];
+  if (setting && setting !== "auto" && setting !== "none" && ![...available, "custom"].includes(setting as ProviderName)) throw new Error(`Unknown AI_FALLBACK "${setting}"`);
+  const names = setting === "none" ? [] : setting && setting !== "auto" ? [setting as ProviderName] : available.filter(hasKey);
+  const fallbacks = names.filter((n) => n !== primaryName);
+  let ai = primary;
+  if (fallbacks.length) {
+    let backup = build(fallbacks.at(-1)!, env, false);
+    for (const name of fallbacks.slice(0, -1).reverse()) backup = withFallback(build(name, env, false), backup);
+    ai = withFallback(primary, backup);
+  }
+  return { ai: withCapacity(ai), description: fallbacks.length ? `${primaryName} (fallback: ${fallbacks.join(" → ")})` : primaryName };
 }

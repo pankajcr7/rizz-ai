@@ -25,13 +25,14 @@ import type {
   SuggestResponse,
   ToneId,
 } from "@rizz/shared";
-import { normalizeChat, prepareTurns } from "./chatShared.js";
+import { coachIssue, normalizeChat, normalizeCoach, prepareTurns } from "./chatShared.js";
 import { normalizeSuggest } from "./claude.js";
 import { buildDatePrompt, buildOpenersPrompt, buildProfilePrompt, buildSuggestPrompt, chatSystem, DATE_SYSTEM, EXTRACT_SYSTEM, OPENERS_SYSTEM, PROFILE_SYSTEM, SUGGEST_SYSTEM } from "./prompts.js";
-import { ChatOut, DateOut, ExtractOut, OpenersOut, ProfileOut, SuggestOut } from "./schemas.js";
+import { ChatOut, CoachOut, DateOut, ExtractOut, OpenersOut, ProfileOut, SuggestOut } from "./schemas.js";
 import { normalizeDate } from "./dateShared.js";
 import { normalizeProfile } from "./profileShared.js";
 import { AiUnavailableError, type RizzAI } from "./types.js";
+import { suggestionIssue } from "./suggestionQuality.js";
 
 export interface OpenAICompatConfig {
   /** For logs, e.g. "groq". */
@@ -50,10 +51,11 @@ export interface OpenAICompatConfig {
 type Part = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 type Msg = { role: "system" | "user" | "assistant"; content: string | Part[] };
 
-const schemaText = (schema: z.ZodType) => JSON.stringify(z.toJSONSchema(schema));
+const schemaText = (schema: z.ZodType) => JSON.stringify(z.toJSONSchema(schema), (key, value) => key === "$schema" || key === "description" ? undefined : value);
+const OUTPUT_BUDGETS = new Map<z.ZodType, number>([[SuggestOut, 2000], [ChatOut, 1600], [CoachOut, 2000], [OpenersOut, 1400]]);
 
 function jsonInstructions(schema: z.ZodType) {
-  return `\n\nOutput format: respond with ONE JSON object and nothing else — no markdown, no code fences, no commentary. It must match this JSON Schema exactly (all listed fields are required):\n${schemaText(schema)}`;
+  return `\n\nOutput format: respond with ONE JSON object and nothing else — no markdown, no code fences, no commentary. Match this JSON Schema; include fields marked required:\n${schemaText(schema)}`;
 }
 
 /** Some models wrap JSON in ```json fences or add a preamble despite instructions. */
@@ -75,10 +77,10 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
   const doFetch = cfg.fetch ?? fetch;
   const url = `${cfg.baseURL.replace(/\/+$/, "")}/chat/completions`;
 
-  async function complete(model: string, messages: Msg[]): Promise<string> {
+  async function complete(model: string, messages: Msg[], maxTokens: number): Promise<string> {
     const started = Date.now();
     try {
-      const text = await completeOnce(model, messages);
+      const text = await completeOnce(model, messages, maxTokens);
       console.log(`[ai] ${cfg.name} ${model} ok in ${Date.now() - started}ms`);
       return text;
     } catch (err) {
@@ -88,7 +90,7 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
     }
   }
 
-  async function completeOnce(model: string, messages: Msg[]): Promise<string> {
+  async function completeOnce(model: string, messages: Msg[], maxTokens: number): Promise<string> {
     let res: Response;
     try {
       res = await doFetch(url, {
@@ -99,9 +101,9 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
           messages,
           response_format: { type: "json_object" },
           temperature: cfg.temperature ?? 0.8,
-          max_tokens: 4000,
+          max_tokens: maxTokens,
         }),
-        signal: AbortSignal.timeout(cfg.timeoutMs ?? 25_000),
+        signal: AbortSignal.timeout(cfg.timeoutMs ?? 18_000),
       });
     } catch (err) {
       const timedOut = (err as Error).name === "TimeoutError";
@@ -109,8 +111,7 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
     }
 
     if (!res.ok) {
-      const detail = (await res.text().catch(() => "")).slice(0, 300);
-      const cause = new Error(`${cfg.name} ${res.status}: ${detail}`);
+      const cause = new Error(`${cfg.name} HTTP ${res.status}`);
       if (res.status === 429) throw new AiUnavailableError("AI is busy, try again in a moment", cause);
       if (res.status === 401 || res.status === 403) throw new AiUnavailableError("AI is temporarily unavailable", cause);
       if (res.status >= 500) throw new AiUnavailableError("AI is temporarily unavailable", cause);
@@ -125,16 +126,19 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
   }
 
   /** One call plus one corrective retry if the JSON doesn't match the schema. */
-  async function call<T extends z.ZodType>(schema: T, system: string, messages: Msg[], hasImage: boolean): Promise<z.infer<T>> {
+  async function call<T extends z.ZodType>(schema: T, system: string, messages: Msg[], hasImage: boolean, quality?: (out: z.infer<T>) => string | undefined): Promise<z.infer<T>> {
     const model = hasImage ? cfg.visionModel : cfg.textModel;
     const convo: Msg[] = [{ role: "system", content: system + jsonInstructions(schema) }, ...messages];
     let lastError = "";
     for (let attempt = 0; attempt < 2; attempt++) {
-      const text = await complete(model, convo);
+      const text = await complete(model, convo, OUTPUT_BUDGETS.get(schema) ?? 4000);
       try {
         const parsed = schema.safeParse(extractJson(text));
-        if (parsed.success) return parsed.data;
-        lastError = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+        if (parsed.success) {
+          const issue = quality?.(parsed.data);
+          if (!issue) return parsed.data;
+          lastError = issue;
+        } else lastError = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
       } catch (err) {
         lastError = (err as Error).message;
       }
@@ -148,8 +152,8 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
 
   return {
     async suggest(req: SuggestRequestParsed, forcedFlag: SafetyFlag): Promise<SuggestResponse> {
-      const out = await call(SuggestOut, SUGGEST_SYSTEM, [{ role: "user", content: buildSuggestPrompt(req, forcedFlag) }], false);
-      return normalizeSuggest(out, req.count, forcedFlag);
+      const out = await call(SuggestOut, SUGGEST_SYSTEM, [{ role: "user", content: buildSuggestPrompt(req, forcedFlag) }], false, (out) => suggestionIssue(out.suggestions, req.count, out.safety.flag));
+      return normalizeSuggest(out, req.count, forcedFlag, req);
     },
 
     async openers(args: { platform: Platform; tone: ToneId; bio?: string; image?: ImageInput; count: number; prefs: Preferences }): Promise<OpenersResponse> {
@@ -183,6 +187,10 @@ export function createOpenAICompatAI(cfg: OpenAICompatConfig): RizzAI {
     },
 
     async chat(req: ChatRequestParsed, forcedFlag: SafetyFlag): Promise<ChatResponse> {
+      if (req.mode === "coach") {
+        const out = await call(CoachOut, chatSystem(req.mode), prepareTurns(req), false, coachIssue);
+        return normalizeCoach(out, req, forcedFlag);
+      }
       const out = await call(ChatOut, chatSystem(req.mode), prepareTurns(req), false);
       return normalizeChat(out, req, forcedFlag);
     },

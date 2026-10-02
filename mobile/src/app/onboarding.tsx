@@ -6,12 +6,13 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { TONES, type Preferences, type ToneId } from "@rizz/shared";
 import { Glow } from "../components/Glow";
+import { LegalLinks } from "../components/LegalLinks";
 import { Button, IconButton, Input, Notice, Screen, T } from "../components/ui";
 import { useApp } from "../store";
 import { colors, font, gradient, radius, space } from "../theme";
 
 const STEPS = 4;
-const STYLE_TONES: ToneId[] = ["smooth", "funny", "flirty", "sweet"];
+const STYLE_TONES = Object.keys(TONES) as ToneId[];
 const LANGS: { id: Preferences["language"]; title: string; example: string }[] = [
   { id: "english", title: "English", example: "“ok but what's your go-to karaoke song?”" },
   { id: "hinglish", title: "Hinglish", example: "“acha ji, itna attitude? 😏”" },
@@ -110,8 +111,9 @@ export default function Onboarding() {
           </T>
           <Input value={aboutMe} onChangeText={setAboutMe} placeholder="e.g. 23, gym + anime, dog person" maxLength={300} />
           <T v="small" color={colors.textMute} style={{ marginTop: space(2) }}>
-            Makes replies sound like you. Stays on your phone.
+            Saved on this phone and sent to our server and AI provider when you request help.
           </T>
+          <LegalLinks />
         </View>
       ) : null}
     </Screen>
@@ -159,7 +161,8 @@ function OptionCard({ selected, onPress, emoji, title, body }: { selected: boole
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ checked: selected, selected }}
+      aria-checked={selected}
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         onPress();
@@ -184,6 +187,7 @@ function Check({ checked, onPress, label, missing }: { checked: boolean; onPress
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
+      aria-checked={checked}
       style={[styles.option, checked && styles.optionOn, missing && { borderColor: colors.danger }]}
     >
       <Ionicons name={checked ? "checkbox" : "square-outline"} size={24} color={checked ? colors.pink : missing ? colors.danger : colors.textMute} />

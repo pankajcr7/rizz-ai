@@ -5,7 +5,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { STAGES, TONES, type Preferences } from "@rizz/shared";
+import { hasChatBoundary, STAGES, TONES, type Preferences } from "@rizz/shared";
 import { GOAL_OPTIONS, PLATFORM_OPTIONS, STAGE_OPTIONS } from "../lib/options";
 import { useApp } from "../store";
 import { colors, font, GUTTER, radius, space } from "../theme";
@@ -35,10 +35,10 @@ const BOLD_LABELS = ["Safe", "Chill", "Playful", "Bold", "Spicy"];
 export const boldLabel = (n: number) => BOLD_LABELS[n - 1] ?? "Playful";
 
 export function VibePills({ onOpen, showGoal }: { onOpen: () => void; showGoal?: boolean }) {
-  const { defaultTone, prefs, goal, stage } = useApp();
+  const { defaultTone, prefs, goal, stage, draftChat } = useApp();
   const tone = TONES[defaultTone];
   const stageLabel = stage === "auto" ? null : `${STAGES[stage].emoji} ${STAGES[stage].label}`;
-  const goalLabel = GOAL_OPTIONS.find((g) => g.id === goal)?.label;
+  const goalLabel = hasChatBoundary(draftChat) ? "Respect their boundary" : GOAL_OPTIONS.find((g) => g.id === goal)?.label;
   const lang = LANGUAGES.find((l) => l.id === prefs.language)?.label ?? prefs.language;
   const pills = [`${tone.emoji} ${tone.label}`, `🌶 ${boldLabel(prefs.boldness)}`, ...(showGoal && stageLabel ? [stageLabel] : []), ...(showGoal && goalLabel ? [goalLabel] : []), lang];
   return (
@@ -70,7 +70,7 @@ export function VibePills({ onOpen, showGoal }: { onOpen: () => void; showGoal?:
 }
 
 export function VibeSheet({ open, onClose, showGoal }: { open: boolean; onClose: () => void; showGoal?: boolean }) {
-  const { defaultTone, setDefaultTone, prefs, setPrefs, goal, setGoal, stage, setStage, platform, setPlatform } = useApp();
+  const { defaultTone, setDefaultTone, prefs, setPrefs, goal, setGoal, stage, setStage, platform, setPlatform, draftChat } = useApp();
   return (
     <Sheet open={open} onClose={onClose} title="Set the vibe" footer={<Button title="Done" onPress={onClose} />}>
       <Section title="Tone">
@@ -114,7 +114,7 @@ export function VibeSheet({ open, onClose, showGoal }: { open: boolean; onClose:
 
       {showGoal ? (
         <Section title="Goal">
-          <ChipRow options={GOAL_OPTIONS} value={goal} onChange={setGoal} wrap />
+          {hasChatBoundary(draftChat) ? <T v="small" color={colors.textDim}>They asked to stop. Respect their boundary and give them space.</T> : <ChipRow options={GOAL_OPTIONS} value={goal} onChange={setGoal} wrap />}
         </Section>
       ) : null}
 

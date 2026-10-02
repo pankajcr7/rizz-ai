@@ -3,7 +3,7 @@ import Constants from "expo-constants";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform, Share as RNShare, StyleSheet, Switch, View } from "react-native";
-import { levelFor, liveStreak, TONES, type Preferences } from "@rizz/shared";
+import { levelFor, liveStreak, quotaResetLabel, TONES, type Preferences } from "@rizz/shared";
 import { useCrushes } from "../../store/crushes";
 import { useProgress } from "../../store/progress";
 import { useSession } from "../../store/session";
@@ -19,11 +19,12 @@ import { ToneStrip } from "../../components/ToneStrip";
 import { Button, Card, ChipRow, GradientBorder, Input, ListGroup, ListRow, Notice, Screen, Section, T } from "../../components/ui";
 import { boldLabel, LANGUAGES } from "../../components/Vibe";
 import { BrandHeader } from "../../components/BrandHeader";
+import { LegalLinks } from "../../components/LegalLinks";
 import { identifyPurchases } from "../../lib/purchasesIdentity";
 import { useApp } from "../../store";
 import { colors, font, space } from "../../theme";
 
-type SheetId = "tone" | "language" | "boldness" | "length" | "emoji" | "about" | "style" | "redeem" | null;
+type SheetId = "tone" | "language" | "boldness" | "length" | "emoji" | "about" | "style" | "redeem" | "deleteAccount" | null;
 
 const LENGTHS: { id: Preferences["length"]; label: string }[] = [
   { id: "short", label: "Short" },
@@ -40,6 +41,9 @@ export default function Me() {
   const { prefs, setPrefs, defaultTone, setDefaultTone, saveHistory, setSaveHistory, quota, referral, setReferral, refreshMe, resetAll } = useApp();
   const [sheet, setSheet] = useState<SheetId>(null);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string>();
   useFocusEffect(useCallback(() => { void account.email().then(setAccountEmail); }, []));
   const [about, setAbout] = useState(prefs.aboutMe ?? "");
   const [styleText, setStyleText] = useState((prefs.styleExamples ?? []).join("\n"));
@@ -135,6 +139,15 @@ export default function Me() {
   };
 
   const close = () => setSheet(null);
+  const deleteAccount = async () => {
+    setDeleting(true); setDeleteError(undefined);
+    try {
+      await account.delete(deletePassword);
+      await signOut();
+      toast("Account and this device's data deleted");
+    } catch (e) { setDeleteError(errorMessage(e)); }
+    finally { setDeleting(false); }
+  };
   const lang = LANGUAGES.find((l) => l.id === prefs.language)?.label ?? prefs.language;
 
   return (
@@ -144,6 +157,7 @@ export default function Me() {
       <Section title="Account">
         <Card style={{ marginBottom: space(3) }}><T v="headline">{accountEmail || "Guest mode"}</T><T v="small" color={colors.textDim} style={{ marginTop: space(1) }}>{accountEmail ? "Your plan is linked to this email. Chats stay on this phone." : "Create an account to keep your plan across devices."}</T></Card>
         {accountEmail ? <Button title="Log out" variant="secondary" icon="log-out-outline" onPress={() => void signOut()} /> : <Button title="Sign up or log in" icon="person-add-outline" onPress={() => router.push("/auth")} />}
+        {accountEmail ? <Button title="Delete account" variant="danger" size="md" icon="trash-outline" onPress={() => { setDeletePassword(""); setDeleteError(undefined); setSheet("deleteAccount"); }} style={{ marginTop: space(3) }} /> : null}
       </Section>
       <Section title="Your stuff"><ListGroup>
         <ListRow icon="bookmark-outline" title="Saved replies" onPress={() => router.push("/saved")} />
@@ -283,6 +297,8 @@ export default function Me() {
           <ListRow icon="trash-outline" title="Delete local data" danger onPress={confirmDelete} last />
         </ListGroup>
       </Section>
+      {quota?.limit !== null && quota?.resetsAt ? <T v="small" color={colors.textDim} style={{ marginBottom: space(4) }}>{quotaResetLabel(quota.resetsAt)}</T> : null}
+      <LegalLinks />
 
       <T v="small" color={colors.textMute} style={{ textAlign: "center" }}>
         {PRIVACY}
@@ -292,6 +308,12 @@ export default function Me() {
       </T>
 
       {/* Sheets */}
+      <Sheet open={sheet === "deleteAccount"} onClose={() => { if (!deleting) close(); }} title="Delete your account?" footer={<Button title="Delete account and local data" variant="danger" loading={deleting} disabled={!deletePassword} onPress={() => void deleteAccount()} />}>
+        <T v="body" color={colors.textDim} style={{ marginBottom: space(4) }}>This removes your email account, usage, plan and invite records and clears data on this device. Other devices keep their local copies. This cannot be undone. Cancel any paid subscription in your app store separately.</T>
+        <Input accessibilityLabel="Current password to confirm deletion" value={deletePassword} onChangeText={setDeletePassword} secureTextEntry autoCapitalize="none" placeholder="Your current password" maxLength={128} />
+        {deleteError ? <Notice text={deleteError} /> : null}
+        <Button title="Forgot your password?" variant="ghost" size="sm" onPress={() => { close(); router.push("/reset-password"); }} style={{ marginTop: space(3) }} />
+      </Sheet>
       <Sheet open={sheet === "tone"} onClose={close} title="Default tone" footer={<Button title="Done" onPress={close} />}>
         <ToneStrip value={defaultTone} onChange={setDefaultTone} />
         <View style={{ height: space(4) }} />
@@ -375,7 +397,7 @@ export default function Me() {
       >
         <Input value={about} onChangeText={setAbout} placeholder="e.g. 23, gym + anime, bad at cooking, dog person" maxLength={300} multiline style={{ minHeight: 90 }} />
         <T v="small" color={colors.textMute} style={{ marginTop: space(2), fontFamily: font.medium }}>
-          Helps replies sound like you. Stays on your phone; only sent with your requests.
+          Saved locally and sent to our server and AI provider with your requests to help replies sound like you.
         </T>
       </Sheet>
     </Screen>
@@ -383,7 +405,7 @@ export default function Me() {
 }
 
 const PRIVACY =
-  "Chats are sent to our server only to write replies. Phone numbers and emails are removed first, and chats aren't stored on our servers or used for ads.";
+  "Selected chats and personalization details go to our server and AI provider when you request help. Contact details are removed from text before it reaches the AI; photos and audio are not automatically redacted. Provider retention and use vary — see the privacy policy.";
 
 const styles = StyleSheet.create({
   codeRow: { flexDirection: "row", alignItems: "center", gap: space(3), marginTop: space(4), padding: space(3), borderRadius: 14, backgroundColor: colors.surface2, borderWidth: 1, borderStyle: "dashed", borderColor: colors.borderStrong },

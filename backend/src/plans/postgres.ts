@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   password_hash text NOT NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS account_resets (
+  email text PRIMARY KEY REFERENCES accounts(email) ON DELETE CASCADE,
+  token_hash text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  attempts integer NOT NULL DEFAULT 0,
+  consumed boolean NOT NULL DEFAULT false
+);
 CREATE TABLE IF NOT EXISTS referral_codes (
   code       text PRIMARY KEY,
   device_id  text NOT NULL UNIQUE
@@ -50,6 +58,7 @@ CREATE INDEX IF NOT EXISTS referral_redemptions_code ON referral_redemptions(cod
 export async function migrate(db: Db): Promise<void> {
   for (const stmt of SCHEMA.split(";").map((s) => s.trim()).filter(Boolean)) await db.query(stmt);
   await db.query(`DELETE FROM usage WHERE day < CURRENT_DATE - 7`);
+  await db.query(`DELETE FROM account_resets WHERE expires_at < now()`);
 }
 
 const utcDay = (now: Date) => now.toISOString().slice(0, 10);

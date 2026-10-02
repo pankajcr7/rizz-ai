@@ -44,6 +44,14 @@ export const ChatOut = z.object({
   feedback: z.object({ score: z.number(), note: z.string(), better: z.string() }).nullable(),
   safety: Safety,
 });
+/** Separate advice fields prevent the text-message length preference from shrinking coaching to one line. */
+export const CoachOut = z.object({
+  recommendation: z.string(),
+  evidence: z.string(),
+  nextStep: z.string(),
+  example: z.string().nullable(),
+  safety: Safety,
+});
 export const ExtractOut = z.object({
   platform: z.enum(["instagram", "snapchat", "tinder", "bumble", "hinge", "facebook", "whatsapp", "telegram", "other"]),
   theirName: z.string().nullable(),

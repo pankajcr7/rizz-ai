@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { STAGES, type ChatMessage, type ProfileReviewResponse, type SuggestResponse } from "@rizz/shared";
+import { quotaResetLabel, shouldOfferDate, STAGES, type ChatMessage, type ProfileReviewResponse, type SuggestResponse } from "@rizz/shared";
 import { SwipeReplyCards } from "../components/SwipeReplyCards";
 import { ReplyCard } from "../components/ReplyCard";
 import { LoadingLines, Skeleton, SkeletonCard } from "../components/Skeleton";
@@ -28,7 +28,7 @@ const score10Color = (n: number) => (n >= 7 ? colors.success : n >= 5 ? colors.w
 
 export default function Results() {
   const { job, status, reply, opener, profile, error, retone, more, adjust, learnStyle, fillMissing, continueChat } = useSession();
-  const { setDraftChat, setReplyDraft, theirName } = useApp();
+  const { setDraftChat, setReplyDraft, theirName, quota } = useApp();
   const openShare = useShare((s) => s.open);
   const [sentText, setSentText] = useState<string>();
   const [theirReply, setTheirReply] = useState("");
@@ -47,7 +47,7 @@ export default function Results() {
 
   const kind = job.kind;
   const tone = job.kind === "profile" ? "smooth" : job.req.tone;
-  const needsInfo = kind === "reply" && !!reply && (!!reply.missingInfo || reply.suggestions.some((s) => s.text.includes("[fill-in]")));
+  const needsInfo = kind === "reply" && !!reply && (!!reply.missingInfo || reply.suggestions.some((s) => /\[[^\]]+\]/.test(s.text)));
 
   // "Sent it": keep the thread here so the user can add the response and continue.
   const onSent = (text: string) => {
@@ -86,7 +86,7 @@ export default function Results() {
       footer={
         status === "done" ? (
           <View style={{ flexDirection: "row", gap: space(3) }}>
-            {kind !== "profile" ? <Button title={kind === "reply" ? "More like this" : "More openers"} icon="refresh" variant="secondary" onPress={() => void more()} style={{ flex: 1 }} /> : null}
+            {kind !== "profile" ? <Button title={kind === "reply" ? "More replies" : "More openers"} icon="refresh" variant="secondary" onPress={() => void more()} style={{ flex: 1 }} /> : null}
             {canShare ? <Button title={kind === "profile" ? "Share my score" : "Share"} icon="share-social" onPress={share} style={{ flex: 1 }} /> : null}
           </View>
         ) : undefined
@@ -123,7 +123,7 @@ export default function Results() {
               You’re out of free replies
             </T>
             <T v="small" color={colors.textDim} style={{ textAlign: "center", marginTop: space(1), marginBottom: space(5) }}>
-              They reset at midnight — or invite a friend for 7 days of Pro.
+              {quotaResetLabel(quota?.resetsAt)} Or invite a friend for 7 days of Pro.
             </T>
             <Button title="Go Pro" icon="diamond" onPress={() => router.push("/paywall")} style={{ alignSelf: "stretch" }} />
             <Button title="Invite a friend" icon="gift-outline" variant="ghost" onPress={() => router.navigate("/settings")} style={{ alignSelf: "stretch", marginTop: space(2) }} />
@@ -139,45 +139,26 @@ export default function Results() {
       {status === "done" && kind === "reply" && reply ? (
         <View>
           {reply.safety.flag !== "none" ? <Notice text={reply.safety.message} tone="warn" /> : null}
-          <NextMoveCard reply={reply} messages={job.req.messages} />
-          {reply.stage ? <StageCard stage={reply.stage} /> : null}
-          <View style={{ marginBottom: space(3) }}>
-            <VibeGauge vibe={reply.vibe} />
-          </View>
-          {reply.vibe.ghost ? <GhostCard ghost={reply.vibe.ghost} /> : null}
-          {reply.vibe.interest >= 55 ? (
-            <Card onPress={() => router.push({ pathname: "/date", params: job.crushId ? { crushId: job.crushId } : {} })} style={styles.dateCta}>
-              <T style={{ fontSize: 26 }}>📅</T>
-              <View style={{ flex: 1 }}>
-                <T v="bodyStrong">The vibe is good — ask them out?</T>
-                <T v="small" color={colors.textDim}>
-                  3 date ideas + the exact message to send
-                </T>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMute} />
-            </Card>
-          ) : null}
-          <View style={{ height: space(2) }} />
+          <Section title={needsInfo ? "Your replies · replace the fill-in" : "Three ways to say it"}>
+            <SwipeReplyCards items={reply.suggestions} tone={tone} onSent={reply.safety.flag === "none" ? onSent : undefined} />
+          </Section>
           {needsInfo ? (
             <Card style={{ marginBottom: space(4), borderColor: colors.warn }}>
-              <T v="bodyStrong">One detail is missing</T>
+              <T v="bodyStrong">Make these replies yours</T>
               <T v="small" color={colors.textDim} style={{ marginTop: space(1), marginBottom: space(3) }}>
                 {reply.missingInfo?.prompt || "Add the personal detail needed to answer them. Rizz AI won’t invent it."}
               </T>
               <Input value={missingDetail} onChangeText={setMissingDetail} placeholder="Type the real detail…" maxLength={300} />
               <Button title="Use this detail" icon="sparkles" size="md" disabled={!missingDetail.trim()} onPress={() => void fillMissing(missingDetail)} style={{ marginTop: space(2) }} />
             </Card>
-          ) : (
+          ) : null}
             <>
-              <Section title="Three ways to say it">
-                <SwipeReplyCards items={reply.suggestions} tone={tone} onSent={onSent} />
-              </Section>
               <Section title="Adjust this reply">
                 <View style={styles.wrap}>
                   <Chip label="Shorter" icon="contract-outline" onPress={() => void adjust("shorter")} />
                   <Chip label="Less flirty" icon="remove-circle-outline" onPress={() => void adjust("less_flirty")} />
                   <Chip label="More casual" icon="chatbubble-outline" onPress={() => void adjust("more_casual")} />
-                  <Chip label="More Hindi" icon="language-outline" onPress={() => void adjust("more_hindi")} />
+                  {job.req.prefs?.language === "hinglish" || job.req.prefs?.language === "hindi" ? <Chip label="More Hindi" icon="language-outline" onPress={() => void adjust("more_hindi")} /> : null}
                 </View>
               </Section>
               <Section title="Not your style? Teach it">
@@ -193,7 +174,6 @@ export default function Results() {
                 </T>
               </Section>
             </>
-          )}
           {sentText ? (
             <Card style={{ marginBottom: space(4), borderColor: colors.success }}>
               <T v="caption" color={colors.success}>SENT</T>
@@ -206,6 +186,17 @@ export default function Results() {
             </Card>
           ) : null}
           {reply.coachTip ? <Notice text={reply.coachTip} tone="info" icon="bulb-outline" /> : null}
+          <NextMoveCard reply={reply} messages={job.req.messages} />
+          {reply.stage ? <StageCard stage={reply.stage} /> : null}
+          <View style={{ marginBottom: space(3) }}><VibeGauge vibe={reply.vibe} /></View>
+          {reply.vibe.ghost ? <GhostCard ghost={reply.vibe.ghost} /> : null}
+          {shouldOfferDate(reply, job.req.messages) ? (
+            <Card onPress={() => router.push({ pathname: "/date", params: job.crushId ? { crushId: job.crushId } : {} })} style={styles.dateCta}>
+              <T style={{ fontSize: 26 }}>📅</T>
+              <View style={{ flex: 1 }}><T v="bodyStrong">Ready to suggest a date?</T><T v="small" color={colors.textDim}>3 date ideas + a message to send</T></View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMute} />
+            </Card>
+          ) : null}
         </View>
       ) : null}
 
@@ -237,12 +228,9 @@ export default function Results() {
 }
 
 function NextMoveCard({ reply, messages }: { reply: SuggestResponse; messages: ChatMessage[] }) {
-  if (reply.missingInfo || reply.suggestions.some((s) => s.text.includes("[fill-in]"))) {
-    return <Notice text={`Add one detail first — ${reply.missingInfo?.prompt || "Rizz AI needs a personal fact before it can write a safe answer."}`} tone="info" icon="help-circle-outline" />;
-  }
   const last = messages.at(-1);
   const fallback =
-    reply.safety.flag === "not_interested" || reply.safety.flag === "uncomfortable"
+    reply.safety.flag !== "none"
       ? { action: "end" as const, reason: "They set a boundary, so the useful move is to stop here." }
       : last?.from === "me"
         ? { action: "wait" as const, reason: "Your message is already the latest one in the chat." }

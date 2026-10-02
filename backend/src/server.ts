@@ -7,6 +7,7 @@ import { migrate, PgEntitlements, PgQuota, PgReferrals } from "./plans/postgres.
 import { CHAT_LIMITS, DAILY_LIMITS, EXTRACT_LIMITS, MemoryEntitlements, MemoryQuota } from "./plans/quota.js";
 import { MemoryReferrals } from "./plans/referrals.js";
 import { MemoryAccounts, PgAccounts } from "./plans/accounts.js";
+import { resendResetMailer } from "./plans/resetMail.js";
 
 const env = cleanEnv(process.env);
 const production = env.NODE_ENV === "production";
@@ -79,6 +80,7 @@ const app = await buildApp(
     // Voice practice uses Groq Whisper (free) whenever a Groq key is present, whatever the chat provider.
     transcriber: env.GROQ_API_KEY ? createGroqTranscriber({ apiKey: env.GROQ_API_KEY, model: env.STT_MODEL }) : undefined,
     tokenSecret,
+    resetMailer: env.RESEND_API_KEY && env.RESET_EMAIL_FROM ? resendResetMailer(env.RESEND_API_KEY, env.RESET_EMAIL_FROM) : undefined,
     webhookSecret: env.REVENUECAT_WEBHOOK_SECRET,
   },
   {

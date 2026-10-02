@@ -20,7 +20,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, font, glow, gradient, GUTTER, radius, space, type } from "../theme";
 
 export type IconName = ComponentProps<typeof Ionicons>["name"];
@@ -59,16 +59,17 @@ export function Screen({
   padded?: boolean;
 }) {
   const pad = padded ? { paddingHorizontal: GUTTER } : null;
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       {scroll ? (
-        <ScrollView contentContainerStyle={[pad, { paddingTop: space(2), paddingBottom: footer ? space(28) : space(10) }]} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[pad, { paddingTop: space(2), paddingBottom: space(10) }]} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
       ) : (
         <View style={[{ flex: 1 }, pad]}>{children}</View>
       )}
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
+      {footer ? <View style={[styles.footer, { paddingBottom: insets.bottom + space(4) }]}>{footer}</View> : null}
     </SafeAreaView>
   );
 }
@@ -250,6 +251,7 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      aria-pressed={selected}
       onPress={() => {
         Haptics.selectionAsync().catch(() => {});
         onPress();
@@ -305,6 +307,7 @@ export function Segmented<K extends string>({
             key={o.id}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
+            aria-selected={on}
             onPress={() => {
               Haptics.selectionAsync().catch(() => {});
               onChange(o.id);
@@ -429,7 +432,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", gap: space(3), paddingTop: space(2), paddingBottom: space(5) },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: space(3) },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: GUTTER, paddingTop: space(3), paddingBottom: space(4), backgroundColor: "rgba(11,11,12,0.97)" },
+  footer: { paddingHorizontal: GUTTER, paddingTop: space(3), backgroundColor: "rgba(11,11,12,0.97)" },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, padding: space(4) },
   pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
   buttonInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space(2), paddingHorizontal: space(5) },

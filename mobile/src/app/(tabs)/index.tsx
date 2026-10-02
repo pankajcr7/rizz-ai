@@ -6,21 +6,17 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "re
 import { parseChat, swapSides, type ToneId } from "@rizz/shared";
 import { RizzOverlay } from "../../../modules/rizz-overlay";
 import { BrandHeader } from "../../components/BrandHeader";
+import { ToneStrip } from "../../components/ToneStrip";
 import { ChatPreview } from "../../components/ChatPreview";
 import { CrushPicker } from "../../components/Crush";
 import { toast } from "../../components/Toast";
-import { Button, Card, Input, Notice, Screen, T } from "../../components/ui";
+import { Button, Card, Chip, Input, Notice, Screen, T } from "../../components/ui";
 import { VibePills, VibeSheet } from "../../components/Vibe";
 import { scanScreenshotToDraft } from "../../lib/scan";
 import { useApp } from "../../store";
 import { useCrushes } from "../../store/crushes";
 import { useSession } from "../../store/session";
 import { colors, font, radius, space } from "../../theme";
-
-const TONES: { id: ToneId; label: string }[] = [
-  { id: "flirty", label: "Flirty" }, { id: "funny", label: "Funny" },
-  { id: "smooth", label: "Smooth" }, { id: "chill", label: "Unbothered" },
-];
 
 export default function ChatHelp() {
   const { draftChat, setDraftChat, setDraftMeta, replyDraft, setReplyDraft, platform, theirName, defaultTone, setDefaultTone, prefs, goal, stage, history } = useApp();
@@ -30,6 +26,8 @@ export default function ChatHelp() {
   const [error, setError] = useState<string>();
   const [pasteOpen, setPasteOpen] = useState(false);
   const [paste, setPaste] = useState("");
+  const [myName, setMyName] = useState<string>();
+  const unresolved = parseChat(paste, myName).unresolvedSpeakers;
   const [typed, setTyped] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [vibeOpen, setVibeOpen] = useState(false);
@@ -46,13 +44,13 @@ export default function ChatHelp() {
     setPasteOpen(true);
     try {
       const value = await Clipboard.getStringAsync();
-      if (value) { setPaste(value); const parsed = parseChat(value); setDraftChat(parsed.messages); setDraftMeta({ theirName: parsed.theirName }); }
+      if (value) { setMyName(undefined); applyPaste(value); }
     } catch { /* Manual paste stays available. */ }
   };
-  const editPaste = (value: string) => {
+  const applyPaste = (value: string, identity?: string) => {
     setPaste(value);
-    const parsed = parseChat(value);
-    setDraftChat(parsed.messages);
+    const parsed = parseChat(value, identity);
+    setDraftChat(parsed.unresolvedSpeakers ? [] : parsed.messages);
     setDraftMeta({ theirName: parsed.theirName });
   };
   const addManual = (from: "me" | "them") => {
@@ -61,6 +59,7 @@ export default function ChatHelp() {
     setTyped("");
   };
   const generate = () => {
+    if (unresolved?.length) { setError("Choose your name in the pasted chat first."); return; }
     void run({ kind: "reply", crushId: crush?.id, req: {
       platform: crush?.platform ?? platform, messages: draftChat, tone: defaultTone, goal, stage,
       theirName: crush?.name ?? theirName, notes: crush?.notes || undefined,
@@ -74,7 +73,7 @@ export default function ChatHelp() {
     <BrandHeader />
     <View style={styles.chatFrame}>
       <View style={styles.frameTop}>
-        <T v="caption" color={colors.lime}>{draftChat.length ? `${theirName || crush?.name || "YOUR CHAT"} · ${draftChat.length} MESSAGES` : "YOUR CHAT"}</T>
+        <T v="caption" color={colors.lime}>{draftChat.length ? `${theirName || crush?.name || "YOUR CHAT"} · ${draftChat.length} MESSAGE${draftChat.length === 1 ? "" : "S"}` : "YOUR CHAT"}</T>
         {draftChat.length ? <Pressable onPress={() => setEditOpen(!editOpen)}><T v="small" color={colors.lime}>{editOpen ? "Done" : "Edit chat"}</T></Pressable> : null}
       </View>
       {draftChat.length ? (
@@ -86,16 +85,15 @@ export default function ChatHelp() {
     </View>
     {draftChat.length > 0 && editOpen ? <Card style={{ marginTop: space(3) }}><ChatPreview messages={draftChat} onChange={setDraftChat} /><View style={styles.editActions}><Button title="Swap sides" size="sm" variant="secondary" onPress={() => setDraftChat(swapSides(draftChat))} /><Button title="Clear" size="sm" variant="danger" onPress={() => { setDraftChat([]); setEditOpen(false); }} /></View></Card> : null}
 
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tones}>
-      {TONES.map((tone) => <Pressable key={tone.id} onPress={() => setDefaultTone(tone.id)} style={[styles.tone, defaultTone === tone.id && styles.toneOn]}><T v="bodyStrong" color={defaultTone === tone.id ? colors.bg : colors.text}>{tone.label}</T></Pressable>)}
-    </ScrollView>
+    <View style={{ paddingVertical: space(5) }}><ToneStrip value={defaultTone} onChange={setDefaultTone} bleed={false} /></View>
 
     {latest ? <ReplyDeck lines={latest.suggestions.map((s) => s.text)} tone={latest.tone} /> : <View style={styles.deckEmpty}><T v="caption" color={colors.textMute}>THE GOOD PART</T><T style={styles.deckTitle}>Your next great reply goes here.</T><T v="small" color={colors.textDim}>Add a real chat and get three lines you can swipe through.</T></View>}
 
     <Button title={scanBusy ? "Reading screenshot…" : "＋  new screenshot"} loading={scanBusy} onPress={() => void scan()} style={{ marginTop: space(5) }} />
     {error ? <Notice text={error} /> : null}
     <View style={styles.quickActions}><Pressable onPress={() => void pasteChat()} style={styles.quick}><Ionicons name="clipboard-outline" size={19} color={colors.lime} /><T v="bodyStrong">Paste chat</T></Pressable><Pressable onPress={() => setEditOpen(true)} style={styles.quick}><Ionicons name="create-outline" size={19} color={colors.lime} /><T v="bodyStrong">Type it</T></Pressable></View>
-    {pasteOpen ? <Input multiline value={paste} onChangeText={editPaste} placeholder={"Paste the chat…\nThem: what are you up to?\nMe: just got home"} style={{ marginBottom: space(4) }} /> : null}
+    {pasteOpen ? <Input multiline value={paste} onChangeText={(value) => applyPaste(value, myName)} placeholder={"Paste the chat…\nThem: what are you up to?\nMe: just got home"} style={{ marginBottom: space(4) }} /> : null}
+    {unresolved?.length ? <Card style={{ marginBottom: space(4) }}><T v="headline">Which one is you?</T><T v="small" color={colors.textDim} style={{ marginVertical: space(2) }}>Choose your name so replies answer the right person.</T><View style={{ flexDirection: "row", flexWrap: "wrap", gap: space(2) }}>{unresolved.map((name) => <Chip key={name} label={name} onPress={() => { setMyName(name); applyPaste(paste, name); setError(undefined); }} />)}</View></Card> : null}
     {editOpen ? <View style={{ gap: space(2), marginBottom: space(4) }}><Input value={typed} onChangeText={setTyped} placeholder="Add a message…" /><View style={{ flexDirection: "row", gap: space(2) }}><Button title="They said" size="sm" variant="secondary" onPress={() => addManual("them")} style={{ flex: 1 }} /><Button title="I said" size="sm" variant="secondary" onPress={() => addManual("me")} style={{ flex: 1 }} /></View></View> : null}
     {draftChat.length ? <><CrushPicker /><VibePills onOpen={() => setVibeOpen(true)} showGoal /><Input value={replyDraft} onChangeText={setReplyDraft} placeholder="Your rough reply (optional)…" style={{ marginTop: space(4) }} /><Button title="Generate replies ✨" onPress={generate} style={{ marginTop: space(4) }} /></> : null}
     {RizzOverlay.available ? <Pressable onPress={() => router.push("/live")} style={styles.live}><Ionicons name="radio-button-on" size={22} color={colors.pink} /><View style={{ flex: 1 }}><T v="bodyStrong">Use Live mode</T><T v="small" color={colors.textDim}>Get replies without leaving their app</T></View><Ionicons name="chevron-forward" size={18} color={colors.textDim} /></Pressable> : null}

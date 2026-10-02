@@ -1,12 +1,12 @@
 # Deploying Rizz AI (free tier)
 
-**Stack:** Neon (Postgres, free) + Render (backend with HTTPS, free) + EAS (Android build).
-It takes about 15 minutes. You need GitHub, Neon and Render accounts; all are free.
+**Stack:** Neon (Postgres, free) + Render (backend with HTTPS, free) + GitHub Actions (standalone Android APK).
+The Android build runs on GitHub’s cloud runners. You need GitHub, Neon and Render accounts; all are free.
 
 ```
 Phone app ──https──► Render: rizz-ai-api ──► Groq (AI, voice)
                           │
-                          └──► Neon Postgres (quotas, Pro, referrals — never chats)
+                          └──► Neon Postgres (accounts, quotas, Pro, referrals — never chats)
 ```
 
 ---
@@ -42,7 +42,9 @@ You don't need to create any tables. The server creates them on first start.
    | `DATABASE_URL` | the Neon connection string from step 2 |
    | `GROQ_API_KEY` | your key from console.groq.com/keys |
    | `GEMINI_API_KEY` | optional |
-   | `AI_FALLBACK` | optional, `gemini` |
+   | `AI_FALLBACK` | blank/`auto` uses configured backups; `none` disables them |
+   | `RESEND_API_KEY` | optional, for password recovery |
+   | `RESET_EMAIL_FROM` | optional, a sender on a verified Resend domain |
 
    `TOKEN_SECRET` and `REVENUECAT_WEBHOOK_SECRET` are generated for you.
 3. **Apply.** When the deploy is live, open `https://rizz-ai-api.onrender.com/health` and you should see `{"ok":true}`.
@@ -54,15 +56,17 @@ You don't need to create any tables. The server creates them on first start.
 
 ## 4. Point the app at it
 
-In `mobile/eas.json`, the `production` and `preview-cloud` profiles use
-`EXPO_PUBLIC_API_URL=https://rizz-ai-api.onrender.com`. Change it if your Render URL differs.
+The workflow `.github/workflows/standalone-apk.yml` on `codex-updated-ui-apk` installs JDK 17 and the Android SDK on GitHub's Ubuntu runner, generates the Android project, and runs `assembleRelease`. The APK includes its JavaScript bundle and opens directly without Expo or a development server.
 
-```bash
-cd mobile
-npx eas-cli@latest build -p android --profile preview-cloud   # installable APK that uses the live server
-npx eas-cli@latest build -p android --profile production      # Play Store build (AAB)
-```
-Production builds block plain `http://`, so they only talk to the HTTPS server.
+Set `EXPO_PUBLIC_API_URL` in both workflow build steps to your HTTPS backend. Push this branch, open GitHub → Actions → **Updated UI Android APK**, wait for success, and download the **rizz-ai-updated-ui-apk** artifact. Unzip it to get `app-release.apk`. Downloading Actions artifacts requires signing into GitHub. No EAS or local Android build tools are needed.
+
+The public policy pages are `https://<your-backend>/privacy` and `/terms`. They share their text with the in-app pages. Review those disclosures against your actual provider setup before publishing the app.
+
+### Account recovery and capacity
+
+Set `RESEND_API_KEY` and `RESET_EMAIL_FROM` in Render's Environment settings, with a sender domain verified in Resend. Reset codes expire in 15 minutes, allow five guesses, are stored only as hashes, and are single-use. Resetting a password revokes existing account sessions. Without the email settings, recovery reports that it is unavailable instead of claiming to have sent an email. Deletion is available under Profile, requires the current password, and removes the account's database records and this device's local app data. Store subscriptions must be cancelled separately.
+
+AI fallback defaults to all configured providers; set `AI_FALLBACK=none` to opt out. Provider-specific model overrides such as `GEMINI_TEXT_MODEL` apply to backups too. The server admits two concurrent AI requests, queues up to twelve briefly, and skips a busy primary for 30 seconds. It sends only the selected language guide and uses smaller output budgets. These measures reduce waste and handle bursts; they do not increase a provider's token quota. Provision paid provider capacity and load-test before a public launch. Gemini's unpaid tier may use submissions for product improvement and human review; enable billing or disable that backup for your intended data-handling policy.
 
 ## 5. Subscriptions (when you're ready to charge)
 
@@ -70,7 +74,7 @@ Production builds block plain `http://`, so they only talk to the HTTPS server.
 2. RevenueCat → **Integrations → Webhooks**:
    - URL: `https://rizz-ai-api.onrender.com/v1/webhooks/revenuecat`
    - Authorization header: `Bearer <REVENUECAT_WEBHOOK_SECRET from Render → Environment>`
-3. Put the RevenueCat **public** Android key in `mobile/eas.json` as `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`.
+3. Set the RevenueCat **public** Android key in the workflow build environment as `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`.
 
 ---
 
@@ -83,6 +87,7 @@ Production builds block plain `http://`, so they only talk to the HTTPS server.
 | `DATABASE_URL` | ✅ in production | Without it, quotas, Pro and referrals are in memory and reset on restart |
 | `NODE_ENV=production` | ✅ | Turns on proxy trust, turns off the localhost rate-limit exemption |
 | `AI_PROVIDER`, `AI_FALLBACK`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `AI_TEXT_MODEL`, `AI_VISION_MODEL`, `STT_MODEL` | optional | See `backend/.env.example` |
+| `RESEND_API_KEY`, `RESET_EMAIL_FROM` | for account recovery | Resend API key and verified sender |
 | `REVENUECAT_WEBHOOK_SECRET` | for payments | |
 | `CORS_ORIGINS` | only for a web frontend | Comma-separated |
 | `TRUST_PROXY` | optional | Defaults to on in production |
@@ -95,5 +100,7 @@ Production builds block plain `http://`, so they only talk to the HTTPS server.
 | `usage` | Daily counters per device and feature (rows older than 7 days are deleted on each start) |
 | `entitlements` | Pro subscription flag, and Pro-until from referrals |
 | `referral_codes`, `referral_redemptions` | Invite codes, and who used which |
+| `accounts` | Email, salted password hash, account identity and session version |
+| `account_resets` | Hashed recovery code, expiry, attempt count and consumption state |
 
-No chats, screenshots, voice or names are ever stored on the server.
+Chat content, screenshots and voice recordings are processed without saving them in our database or application logs. Account emails and usage records are stored as listed above. AI providers have their own retention policies. Daily free limits reset at midnight UTC; the app displays the corresponding local time.

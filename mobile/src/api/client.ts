@@ -101,7 +101,7 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
   }
 }
 
-async function request<T>(method: "GET" | "POST", path: string, body?: unknown, retried = false): Promise<T> {
+async function request<T>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown, retried = false): Promise<T> {
   const token = await getToken();
   const res = await timedFetch(`${API_URL}${path}`, {
     method,
@@ -146,11 +146,23 @@ export const account = {
   email: () => secureStorage.get(ACCOUNT_KEY),
   signUp: async (email: string, password: string) => accountRequest("/v1/account/signup", { email, password }, await getToken()),
   logIn: (email: string, password: string) => accountRequest("/v1/account/login", { email, password }),
+  requestReset: (email: string) => publicAccountRequest<{ ok: true; message: string }>("/v1/account/password-reset/request", { email }),
+  confirmReset: (email: string, code: string, password: string) => publicAccountRequest<{ ok: true }>("/v1/account/password-reset/confirm", { email, code, password }),
+  delete: (password: string) => request<{ ok: true }>("DELETE", "/v1/account", { password }),
   signOut: async () => {
     await Promise.all([secureStorage.remove(ACCOUNT_KEY), secureStorage.remove(TOKEN_KEY), secureStorage.remove(DEVICE_KEY)]);
     tokenPromise = null;
   },
 };
+
+async function publicAccountRequest<T>(path: string, body: unknown): Promise<T> {
+  const res = await timedFetch(`${API_URL}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as ApiError | null;
+    throw new RizzApiError(err?.error.code ?? "internal", err?.error.message ?? "Couldn't access your account", res.status);
+  }
+  return res.json() as Promise<T>;
+}
 
 export const api = {
   suggest: (body: SuggestRequest) => request<SuggestResponse>("POST", "/v1/suggest", body),

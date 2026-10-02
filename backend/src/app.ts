@@ -4,6 +4,8 @@ import rateLimit from "@fastify/rate-limit";
 import { ZodError } from "zod";
 import { AiDeclinedError, AiUnavailableError } from "./ai/types.js";
 import { sendError, v1Routes, type Deps } from "./routes/v1.js";
+import { PRIVACY_SECTIONS, TERMS_SECTIONS } from "@rizz/shared";
+import { policyPage } from "./policyPage.js";
 
 export interface AppOptions {
   logger?: boolean;
@@ -38,6 +40,7 @@ export async function buildApp(deps: Deps, opts: AppOptions = {}) {
   await app.register(cors, {
     origin: opts.corsOrigins?.length ? opts.corsOrigins : ["http://localhost:8081", "http://127.0.0.1:8081"],
     allowedHeaders: ["content-type", "authorization"],
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
     exposedHeaders: ["x-quota-used", "x-quota-limit"],
   });
 
@@ -46,7 +49,7 @@ export async function buildApp(deps: Deps, opts: AppOptions = {}) {
       const first = err.issues[0];
       return sendError(reply, 400, "invalid_request", `${first?.path.join(".") || "body"}: ${first?.message}`);
     }
-    if (err instanceof AiDeclinedError) return sendError(reply, 422, "ai_declined", err.message);
+    if (err instanceof AiDeclinedError) return sendError(reply, 422, "ai_declined", "I can't help with that request. I can help with respectful messages and knowing when to step back.");
     if (err instanceof AiUnavailableError) {
       req.log.warn({ err: err.message, cause: (err.cause as Error | undefined)?.message }, "ai unavailable");
       return sendError(reply, 503, "ai_unavailable", err.message);
@@ -61,6 +64,8 @@ export async function buildApp(deps: Deps, opts: AppOptions = {}) {
   });
 
   app.get("/health", async () => ({ ok: true }));
+  app.get("/privacy", async (_req, reply) => reply.type("text/html; charset=utf-8").send(policyPage("Privacy policy", PRIVACY_SECTIONS)));
+  app.get("/terms", async (_req, reply) => reply.type("text/html; charset=utf-8").send(policyPage("Terms of use", TERMS_SECTIONS)));
   // Opening the bare URL in a browser shouldn't look like an error.
   app.get("/", async () => ({ name: "Rizz AI API", status: "ok", health: "/health", api: "/v1" }));
   await app.register(async (scope) => v1Routes(scope, deps));

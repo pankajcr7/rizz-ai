@@ -26,7 +26,7 @@ const PERSONA_OPTIONS = (Object.keys(PRACTICE_PERSONAS) as PersonaId[]).map((id)
 }));
 
 const STARTERS: Record<ChatMode, string[]> = {
-  coach: ["She left me on read 😭", "How do I ask her out?", "Is she into me?", "Usne reply nahi kiya, kya karun?"],
+  coach: ["They left me on read 😭", "Should I ask them out or wait?", "Are they interested in me?", "Unka reply nahi aaya, kya karun?"],
   practice: ["hey! love your dog pic 🐶", "ok important question: pineapple on pizza?", "hii kaise ho? 😊"],
 };
 
@@ -122,8 +122,10 @@ export default function ChatScreen() {
       setChat(mode, [...withFeedback, { role: "assistant", content: res.reply }]);
       if (spoken || speakReplies) speak(res.reply, prefs.language);
       if (res.feedback) setOpenFeedback(next.length - 1);
-      if (mode === "practice" && res.feedback) useProgress.getState().award("practice", { score: res.feedback.score, persona });
-      else useProgress.getState().award("chat");
+      if (res.safety.flag === "none") {
+        if (mode === "practice" && res.feedback) useProgress.getState().award("practice", { score: res.feedback.score, persona });
+        else useProgress.getState().award("chat");
+      }
       if (res.safety.flag !== "none" && res.safety.message) setError(res.safety.message);
     } catch (e) {
       setChat(mode, items);

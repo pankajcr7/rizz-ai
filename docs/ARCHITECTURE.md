@@ -78,7 +78,7 @@ Based on current rizz/dating-assistant apps (RIZZ, Plug AI, YourMove) plus Hinge
 ### Why these choices
 - **React Native + Expo**: one codebase for iOS and Android, with native Kotlin only where the OS requires it (overlay, keyboard, notification listener). EAS builds in the cloud, so you don't need Android Studio.
 - **The backend holds the AI keys**: keys shipped inside an app get extracted. The backend also enforces quota, safety and billing.
-- **Pluggable AI** (`ai/providers.ts`): Groq's free tier is the default (no card, fast, no data retention by default). Gemini is the optional fallback; its free tier may train on data, so use test data only. Claude is the paid, highest-quality option. Groq, Gemini and OpenRouter share one OpenAI-compatible client: JSON mode, the schema in the prompt, zod validation, and one corrective retry.
+- **Pluggable AI** (`ai/providers.ts`): Groq's free tier is the default (no card, fast, no data retention by default). All configured providers are backups by default (`AI_FALLBACK=none` disables this). Gemini’s unpaid tier may train on submissions and allow human review; use billing or disable it for your intended privacy policy. Two simultaneous AI requests and a short bounded queue limit bursts; busy providers cool down for 30 seconds. Claude is the paid, highest-quality option. Groq, Gemini and OpenRouter share one OpenAI-compatible client: JSON mode, the schema in the prompt, zod validation, and one corrective retry.
 - **Store-safe "live" features**: Google Play rejects apps that use `AccessibilityService` to read chats, so live help comes from three sanctioned APIs instead: MediaProjection (tap to capture), an input method (keyboard), and a NotificationListener (opt-in per app). Each needs explicit user setup.
 - **Privacy by design**: chats, crush memory, history and progress live only on the phone. The server stores only counters, Pro state and referral codes. Phone numbers and emails are redacted before any AI call. Logs never contain request bodies or tokens.
 - **Frozen system prompts**: the per-request data goes in the user turn, so prompt caching works (Claude) and prompts stay auditable.
@@ -105,7 +105,7 @@ ai-rizz/
 │   │   ├── ai/             prompts · schemas · providers (fallback) · claude · openaiCompat · transcribe ·
 │   │   │                   chatShared · profileShared · dateShared · safetyFlags
 │   │   ├── safety/         guardrails (minors, not-interested) · redact (phones, emails)
-│   │   └── plans/          auth (HMAC device tokens) · quota (memory) · referrals (memory) · postgres (all stores)
+│   │   └── plans/          auth (revocable HMAC account tokens) · accounts/recovery · quota (memory) · referrals (memory) · postgres (all stores)
 │   └── test/               129 tests (vitest); store tests run on memory AND real Postgres (PGlite)
 └── mobile/
     ├── app.json · app.config.js · eas.json

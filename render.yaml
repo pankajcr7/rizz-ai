@@ -29,6 +29,11 @@ services:
         sync: false
       - key: AI_FALLBACK
         sync: false
+      # Optional transactional reset email. Use a verified Resend sender.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESET_EMAIL_FROM
+        sync: false
       # RevenueCat → Integrations → Webhooks → Authorization header value ("Bearer <this>")
       - key: REVENUECAT_WEBHOOK_SECRET
         generateValue: true

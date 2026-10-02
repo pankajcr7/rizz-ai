@@ -12,6 +12,7 @@ import { useProgress } from "../store/progress";
 import { useSession } from "../store/session";
 import { useShare } from "../store/share";
 import { colors, font, radius, space } from "../theme";
+import { LegalLinks } from "../components/LegalLinks";
 import { identifyPurchases } from "../lib/purchasesIdentity";
 import { syncKeyboard } from "../lib/keyboardSync";
 
@@ -64,7 +65,7 @@ export default function Auth() {
     </View>}>
       <View style={styles.brand}><T style={styles.logo}>Rizz <T style={styles.lime}>AI</T></T><Ionicons name="sparkles" size={26} color={colors.lime} /></View>
       <T style={styles.hero}>{mode === "signup" ? "Your rizz,\nyour rules." : "Welcome\nback."}</T>
-      <T v="body" color={colors.textDim} style={{ marginBottom: space(8) }}>Save your plan and account across devices. Your chats stay on this phone.</T>
+      <T v="body" color={colors.textDim} style={{ marginBottom: space(8) }}>Save your plan and account across devices. Chat history is saved locally; selected content is sent when you ask for AI help.</T>
 
       <View style={styles.switcher}>
         {(["signup", "login"] as const).map((m) => <Pressable key={m} onPress={() => { setMode(m); setError(undefined); }} style={[styles.switch, mode === m && styles.switchOn]}><T v="bodyStrong" color={mode === m ? colors.bg : colors.textDim}>{m === "signup" ? "Sign up" : "Log in"}</T></Pressable>)}
@@ -78,16 +79,18 @@ export default function Auth() {
         <Pressable onPress={() => setShow(!show)} accessibilityLabel={show ? "Hide password" : "Show password"} style={styles.eye}><Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={21} color={colors.textDim} /></Pressable>
       </View>
       {mode === "signup" ? <><T v="caption" color={colors.textDim} style={styles.label}>CONFIRM PASSWORD</T><Input value={confirm} onChangeText={setConfirm} placeholder="Type it again" secureTextEntry={!show} autoCapitalize="none" textContentType="newPassword" /></> : null}
+      {mode === "login" ? <Button title="Forgot password?" variant="ghost" size="sm" onPress={() => router.push("/reset-password")} style={{ alignSelf: "flex-start", marginTop: space(2) }} /> : null}
       {error ? <Notice text={error} /> : null}
-      <T v="small" color={colors.textMute} style={{ marginTop: space(5), lineHeight: 21 }}>Your email is used for login. Conversation text remains on this device and is sent only when you ask for AI help.</T>
+      <T v="small" color={colors.textMute} style={{ marginTop: space(5), lineHeight: 21 }}>Your email is used for login and account recovery. Saved chats stay on this device; selected content and your personalization settings are sent to our server and AI provider when you request help.</T>
+      <LegalLinks />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   brand: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: space(7), marginBottom: space(10) },
-  logo: { color: colors.text, fontFamily: font.extrabold, fontSize: 38, letterSpacing: -2 },
-  lime: { color: colors.lime, fontFamily: font.extrabold, fontSize: 38 },
+  logo: { color: colors.text, fontFamily: font.extrabold, fontSize: 38, lineHeight: 48, letterSpacing: -2 },
+  lime: { color: colors.lime, fontFamily: font.extrabold, fontSize: 38, lineHeight: 48 },
   hero: { color: colors.text, fontFamily: font.extrabold, fontSize: 52, lineHeight: 55, letterSpacing: -2, marginBottom: space(3) },
   switcher: { flexDirection: "row", backgroundColor: colors.surface2, padding: 4, borderRadius: radius.pill, marginBottom: space(6) },
   switch: { flex: 1, alignItems: "center", justifyContent: "center", height: 48, borderRadius: radius.pill },
