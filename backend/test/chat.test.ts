@@ -47,11 +47,12 @@ describe("normalizeChat", () => {
 });
 
 describe("prompts", () => {
-  it("both chat modes carry the Hinglish guide and safety limits", () => {
+  it("both chat modes carry safety limits and the request carries its language guide", () => {
     for (const p of [COACH_SYSTEM, PRACTICE_SYSTEM]) {
-      expect(p).toContain("romanized Hindi");
       expect(p).toContain("possible_minor");
     }
+    expect(prepareTurns(practice)[0]!.content).toContain("romanized Hindi");
+    expect(prepareTurns(practice)[0]!.content).not.toContain('"tanglish"');
   });
 });
 

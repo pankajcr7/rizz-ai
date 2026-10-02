@@ -18,7 +18,7 @@ describe("parseChat", () => {
     ]);
   });
 
-  it("parses WhatsApp exports and guesses the user as the second speaker", () => {
+  it("requires identity for WhatsApp exports and uses the chosen participant", () => {
     const text = [
       "12/03/2024, 21:41 - Messages and calls are end-to-end encrypted.",
       "12/03/2024, 21:41 - Maya: are you coming saturday?",
@@ -26,7 +26,9 @@ describe("parseChat", () => {
       "12/03/2024, 21:42 - Maya: <Media omitted>",
       "[12/03/24, 9:43 PM] Maya: me obviously",
     ].join("\n");
-    const r = parseChat(text);
+    expect(parseChat(text).unresolvedSpeakers).toEqual(["Maya", "Rahul"]);
+    expect(parseChat(text).theirName).toBeUndefined();
+    const r = parseChat(text, "Rahul");
     expect(r.theirName).toBe("Maya");
     expect(r.messages).toEqual([
       { from: "them", text: "are you coming saturday?" },

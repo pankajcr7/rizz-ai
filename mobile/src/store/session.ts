@@ -10,6 +10,7 @@ import { scheduleCrushNudge } from "../lib/nudges";
 import { useCrushes } from "./crushes";
 import { useApp } from "./index";
 import { useProgress } from "./progress";
+import { keepAnalysis } from "@rizz/shared";
 
 export type Job =
   | { kind: "reply"; req: SuggestRequest; crushId?: string }
@@ -27,7 +28,7 @@ interface SessionState {
   opener?: OpenersResponse;
   profile?: ProfileReviewResponse;
   error?: { message: string; quota: boolean };
-  run: (job: Job) => Promise<void>;
+  run: (job: Job, preserveAnalysis?: boolean) => Promise<void>;
   retone: (tone: ToneId) => Promise<void>;
   more: () => Promise<void>;
   adjust: (kind: ReplyAdjustment) => Promise<void>;
@@ -43,22 +44,24 @@ export const useSession = create<SessionState>((set, get) => ({
   job: null,
   status: "idle",
 
-  async run(job) {
+  async run(job, preserveAnalysis = false) {
+    const previous = preserveAnalysis ? get().reply : undefined;
     const id = ++seq; // a newer request wins; stale responses are dropped
-    set({ job, status: "loading", error: undefined, reply: undefined, opener: undefined, profile: undefined });
+    // Keep the baseline available if another tone is tapped before this request finishes.
+    set({ job, status: "loading", error: undefined, reply: previous, opener: undefined, profile: undefined });
     const app = useApp.getState();
     try {
       if (job.kind === "reply") {
-        const reply = await api.suggest(job.req);
+        const reply = keepAnalysis(await api.suggest(job.req), previous);
         if (id !== seq) return;
         set({ status: "done", reply });
         if (job.crushId) {
           const crushes = useCrushes.getState();
           crushes.recordSession(job.crushId, { chat: job.req.messages, interest: reply.vibe.interest, ghost: reply.vibe.ghost?.risk, memory: reply.memory ?? [] });
           const crush = crushes.crushes.find((c) => c.id === job.crushId);
-          if (crush && job.req.messages.at(-1)?.from === "them") void scheduleCrushNudge(crush);
+          if (crush && reply.safety.flag === "none" && job.req.messages.at(-1)?.from === "them") void scheduleCrushNudge(crush);
         }
-        useProgress.getState().award("reply");
+        if (reply.safety.flag === "none" && reply.suggestions.length) useProgress.getState().award("reply");
         app.addHistory({
           source: "app",
           platform: job.req.platform ?? "other",
@@ -72,12 +75,12 @@ export const useSession = create<SessionState>((set, get) => ({
         const profile = await api.profileReview(job.req);
         if (id !== seq) return;
         set({ status: "done", profile });
-        useProgress.getState().award("profile");
+        if (profile.safety.flag === "none") useProgress.getState().award("profile");
       } else {
         const opener = await api.openers(job.req);
         if (id !== seq) return;
         set({ status: "done", opener });
-        useProgress.getState().award("opener");
+        if (opener.safety.flag === "none" && opener.openers.length) useProgress.getState().award("opener");
         app.addHistory({ source: "opener", platform: job.req.platform ?? "other", tone: job.req.tone, suggestions: opener.openers });
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -85,6 +88,7 @@ export const useSession = create<SessionState>((set, get) => ({
     } catch (e) {
       if (id !== seq) return;
       set({ status: "error", error: { message: errorMessage(e), quota: e instanceof RizzApiError && e.code === "quota_exceeded" } });
+      if (e instanceof RizzApiError && e.code === "quota_exceeded") void useApp.getState().refreshMe();
     }
   },
 
@@ -92,12 +96,12 @@ export const useSession = create<SessionState>((set, get) => ({
     const job = get().job;
     if (!job || job.kind === "profile") return;
     useApp.getState().setDefaultTone(tone);
-    await get().run({ ...job, req: { ...job.req, tone } } as Job);
+    await get().run({ ...job, req: { ...job.req, tone } } as Job, true);
   },
 
   async more() {
     const job = get().job;
-    if (job) await get().run(job);
+    if (job) await get().run(job, true);
   },
 
   async adjust(kind) {
@@ -113,7 +117,7 @@ export const useSession = create<SessionState>((set, get) => ({
     if (kind === "shorter") prefs.length = "short";
     if (kind === "less_flirty") prefs.boldness = Math.max(1, prefs.boldness - 1);
     if (kind === "more_hindi") prefs.language = "hinglish";
-    await get().run({ ...job, req: { ...job.req, prefs, notes: [job.req.notes, instruction].filter(Boolean).join("\n") } });
+    await get().run({ ...job, req: { ...job.req, prefs, notes: [job.req.notes, instruction].filter(Boolean).join("\n") } }, true);
   },
 
   async learnStyle(feedback) {
@@ -122,7 +126,7 @@ export const useSession = create<SessionState>((set, get) => ({
     const app = useApp.getState();
     app.addStyleFeedback(feedback);
     const styleAvoid = [...new Set([...(job.req.prefs?.styleAvoid ?? []), feedback])] as NonNullable<Preferences["styleAvoid"]>;
-    await get().run({ ...job, req: { ...job.req, prefs: { ...app.prefs, ...(job.req.prefs ?? {}), styleAvoid } } });
+    await get().run({ ...job, req: { ...job.req, prefs: { ...app.prefs, ...(job.req.prefs ?? {}), styleAvoid } } }, true);
   },
 
   async fillMissing(detail) {

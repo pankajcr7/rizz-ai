@@ -6,7 +6,7 @@
  * Tone chips and "New ideas" re-run with the last capture.
  */
 import { router } from "expo-router";
-import { chatStats, mostCommon, STAGES, statsLine, stitchFrames, TONES, type ChatMessage, type ChatTurn, type Platform, type ToneId } from "@rizz/shared";
+import { chatStats, keepAnalysis, mostCommon, STAGES, statsLine, stitchFrames, TONES, type ChatMessage, type ChatTurn, type Platform, type SuggestResponse, type ToneId } from "@rizz/shared";
 import { RizzOverlay, type CapturedChat, type PanelState } from "../../modules/rizz-overlay";
 import { api, RizzApiError } from "../api/client";
 import { useApp } from "../store";
@@ -29,6 +29,7 @@ const COACH_CHIPS = ["Are they into me?", "What should I reply?", "Analyze our w
 
 let lastChat: LiveChat | null = null;
 let lastResult: PanelState | null = null;
+let lastAnalysis: SuggestResponse | undefined;
 let coachTurns: ChatTurn[] = [];
 let currentTone: ToneId | null = null;
 let requestSeq = 0;
@@ -65,7 +66,7 @@ async function run(tone: ToneId) {
   const earlier = chat.messages.slice(0, -RECENT).slice(-MAX_EARLIER);
 
   try {
-    const result = await api.suggest({
+    const result = keepAnalysis(await api.suggest({
       platform: chat.platform,
       messages,
       earlier: earlier.length ? earlier : undefined,
@@ -73,8 +74,9 @@ async function run(tone: ToneId) {
       theirName: chat.theirName,
       memory: crush?.facts.length ? crush.facts : undefined,
       prefs,
-    });
+    }), lastAnalysis);
     if (seq !== requestSeq) return;
+    lastAnalysis = result;
     const name = chat.theirName ?? "this chat";
     lastResult = {
       state: "result",
@@ -167,6 +169,7 @@ export function startLiveBridge(): () => void {
         lastChat = { ...lastChat, theirName: target.name, platform: target.platform as Platform };
       }
       lastResult = null;
+      lastAnalysis = undefined;
       coachTurns = [];
       if (!lastChat.messages.length) {
         RizzOverlay.showPanel({ state: "error", title: "No chat found here", message: "Open a conversation and try again." });

@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   ChatRequestSchema,
@@ -22,6 +22,7 @@ import type { EntitlementStore, QuotaStore } from "../plans/quota.js";
 import { MAX_REWARDED_INVITES, referralCode, type ReferralStore } from "../plans/referrals.js";
 import type { RizzAI } from "../ai/types.js";
 import type { Transcriber } from "../ai/transcribe.js";
+import type { ResetMailer } from "../plans/resetMail.js";
 
 export interface Deps {
   ai: RizzAI;
@@ -36,6 +37,7 @@ export interface Deps {
   transcriber?: Transcriber;
   tokenSecret: string;
   accounts?: AccountStore;
+  resetMailer?: ResetMailer;
   webhookSecret?: string;
 }
 
@@ -72,7 +74,9 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const header = req.headers.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
     const session = verifySession(token, tokenSecret);
-    if (!session || (session.kind === "guest" && await accounts.isClaimed(session.deviceId))) {
+    const account = session?.kind === "account" ? await accounts.byDevice(session.deviceId) : null;
+    if (!session || (session.kind === "guest" && await accounts.isClaimed(session.deviceId)) ||
+        (session.kind === "account" && (!account || (account.sessionVersion ?? 0) !== session.version))) {
       sendError(reply, 401, "unauthorized", "Missing or invalid session token");
       return null;
     }
@@ -129,9 +133,10 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
       return sendError(reply, 401, "unauthorized", "Start a guest session before creating an account");
     const { email, password } = credentials.parse(req.body);
     const passwordHash = await hashPassword(password);
-    if (!(await accounts.register({ email, deviceId: session.deviceId, passwordHash })))
+    const sessionVersion = randomInt(1, 1_000_000_000);
+    if (!(await accounts.register({ email, deviceId: session.deviceId, passwordHash, sessionVersion })))
       return sendError(reply, 409, "invalid_request", "This email or device already has an account");
-    return { token: issueAccountToken(session.deviceId, tokenSecret), deviceId: session.deviceId, email };
+    return { token: issueAccountToken(session.deviceId, tokenSecret, sessionVersion), deviceId: session.deviceId, email };
   });
 
   app.post("/v1/account/login", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (req, reply) => {
@@ -139,7 +144,38 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const account = await accounts.byEmail(email);
     if (!(await checkPassword(password, account?.passwordHash ?? null)))
       return sendError(reply, 401, "unauthorized", "Email or password is incorrect");
-    return { token: issueAccountToken(account!.deviceId, tokenSecret), deviceId: account!.deviceId, email: account!.email };
+    return { token: issueAccountToken(account!.deviceId, tokenSecret, account!.sessionVersion ?? 0), deviceId: account!.deviceId, email: account!.email };
+  });
+
+  const emailSchema = z.string().trim().toLowerCase().email().max(254);
+  const resetHash = (email: string, code: string) => createHmac("sha256", tokenSecret).update(`${email}:${code}`).digest("hex");
+  app.post("/v1/account/password-reset/request", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (req, reply) => {
+    const { email } = z.object({ email: emailSchema }).parse(req.body);
+    if (!deps.resetMailer) return sendError(reply, 503, "not_supported", "Password recovery email is not available yet. Please try again later.");
+    const code = String(randomInt(10_000_000, 100_000_000));
+    const exists = await accounts.createReset(email, resetHash(email, code), new Date(Date.now() + 15 * 60_000));
+    if (exists) {
+      try { await deps.resetMailer(email, code); }
+      catch { return sendError(reply, 503, "not_supported", "Couldn't send the recovery email. Please try again later."); }
+    }
+    return { ok: true, message: "If this email has an account, a reset code is on its way. Check your inbox and spam folder." };
+  });
+  app.post("/v1/account/password-reset/confirm", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (req, reply) => {
+    const { email, code, password } = z.object({ email: emailSchema, code: z.string().regex(/^\d{8}$/), password: z.string().min(10).max(128) }).parse(req.body);
+    const changed = await accounts.resetPassword(email, resetHash(email, code), await hashPassword(password));
+    if (!changed) return sendError(reply, 400, "invalid_request", "This code is invalid, expired, or already used. Request a new code.");
+    return { ok: true };
+  });
+  app.delete("/v1/account", async (req, reply) => {
+    const deviceId = await auth(req, reply);
+    if (!deviceId) return reply;
+    const current = await accounts.byDevice(deviceId);
+    if (!current) return sendError(reply, 400, "invalid_request", "Guest users can delete local data in Profile.");
+    const { password } = z.object({ password: z.string().min(1).max(128) }).parse(req.body);
+    if (!(await checkPassword(password, current.passwordHash))) return sendError(reply, 403, "invalid_request", "Enter your current password to delete this account.");
+    await accounts.delete(deviceId);
+    await Promise.all([quota.forget?.(deviceId), extractQuota.forget?.(deviceId), chatQuota.forget?.(deviceId), entitlements.forget?.(deviceId), referrals.forget?.(deviceId)]);
+    return { ok: true };
   });
 
   app.get("/v1/me", async (req, reply) => {
@@ -162,9 +198,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
 
     const result = await metered(deviceId, reply, () => ai.suggest(body, check.forcedFlag));
     if (!result) return reply;
-    if (result.safety.flag !== "none" && !result.safety.message) {
-      result.safety.message = SAFETY_MESSAGES[result.safety.flag];
-    }
+    result.safety.message = SAFETY_MESSAGES[result.safety.flag];
     return result;
   });
 
@@ -177,6 +211,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const result = await metered(deviceId, reply, () =>
       ai.openers({ platform: body.platform, tone: body.tone, bio: body.bio, image: body.image, count: body.count, prefs: body.prefs }),
     );
+    if (result) result.safety.message = SAFETY_MESSAGES[result.safety.flag];
     return result ?? reply;
   });
 
@@ -206,6 +241,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const check = precheck(body.context?.messages ?? [], [...userTexts, body.prefs.aboutMe ?? ""]);
     if (check.block) return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
     const result = await metered(deviceId, reply, () => ai.chat(body, check.forcedFlag), chatQuota);
+    if (result) result.safety.message = SAFETY_MESSAGES[result.safety.flag];
     return result ?? reply;
   });
 
@@ -218,6 +254,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
       return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
     }
     const result = await metered(deviceId, reply, () => ai.profileReview(body));
+    if (result) result.safety.message = SAFETY_MESSAGES[result.safety.flag];
     return result ?? reply;
   });
 
@@ -229,6 +266,7 @@ export async function v1Routes(app: FastifyInstance, deps: Deps) {
     const texts = [...body.messages.map((m) => m.text), ...(body.memory ?? []), body.prefs.aboutMe ?? ""];
     if (mentionsMinor(texts)) return sendError(reply, 403, "blocked_minor", SAFETY_MESSAGES.possible_minor);
     const result = await metered(deviceId, reply, () => ai.datePlan(body));
+    if (result) result.safety.message = SAFETY_MESSAGES[result.safety.flag];
     return result ?? reply;
   });
 

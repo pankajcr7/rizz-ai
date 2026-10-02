@@ -20,8 +20,8 @@ export function SwipeReplyCards({ items, tone, onSent }: { items: { text: string
         <View style={styles.top}><T v="small" color={colors.textDim}>{i + 1} / {items.length}</T><Pressable accessibilityLabel="Save this reply" onPress={() => toggle(item.text, tone)}><Ionicons name={favorites.some((f) => f.text === item.text) ? "heart" : "heart-outline"} size={27} color={favorites.some((f) => f.text === item.text) ? colors.pink : colors.textDim} /></Pressable></View>
         <T style={styles.line}>{item.text}</T>
         {item.why ? <T v="small" color={colors.textDim}>{item.why}</T> : null}
-        <Pressable onPress={async () => { await Clipboard.setStringAsync(item.text); toast("Copied — go send it 🔥"); }} style={styles.copy}><Ionicons name="copy-outline" size={23} color={colors.bg} /><T v="bodyStrong" color={colors.bg} style={{ fontFamily: font.extrabold, fontSize: 17 }}>Copy reply</T></Pressable>
-        {onSent ? <Pressable onPress={() => onSent(item.text)} style={styles.sent}><T v="small" color={colors.lime}>I sent this → keep the chat going</T></Pressable> : null}
+        <Pressable onPress={async () => { await Clipboard.setStringAsync(item.text); toast(/\[[^\]]+\]/.test(item.text) ? "Copied — replace the fill-in before sending" : "Copied — paste it in your chat"); }} style={styles.copy}><Ionicons name="copy-outline" size={23} color={colors.bg} /><T v="bodyStrong" color={colors.bg} style={{ fontFamily: font.extrabold, fontSize: 17 }}>Copy reply</T></Pressable>
+        {onSent && !/\[[^\]]+\]/.test(item.text) ? <Pressable onPress={() => onSent(item.text)} style={styles.sent}><T v="small" color={colors.lime}>I sent this → add their response</T></Pressable> : null}
       </View>)}
     </ScrollView>
     <View style={styles.dots}>{items.map((_, i) => <View key={i} style={[styles.dot, active === i && { backgroundColor: colors.lime }]} />)}</View>

@@ -23,11 +23,12 @@ export interface ParsedChat {
   /** Distinct speaker names seen, in order of appearance. */
   speakers: string[];
   theirName?: string;
+  /** Named participants that require the user to choose their identity. */
+  unresolvedSpeakers?: string[];
 }
 
 export function parseChat(input: string, myName?: string): ParsedChat {
   const messages: ChatMessage[] = [];
-  const owners: (string | undefined)[] = []; // speaker name per message
   const speakers: string[] = [];
   const mine = myName?.trim().toLowerCase();
   let sawPrefix = false;
@@ -42,10 +43,9 @@ export function parseChat(input: string, myName?: string): ParsedChat {
       if (MEDIA.test(m[2]!.trim())) continue;
       sawPrefix = true;
       const lower = name.toLowerCase();
-      if (!speakers.includes(name)) speakers.push(name);
+      if (!speakers.some((s) => s.toLowerCase() === lower)) speakers.push(name);
       const from = ME_ALIASES.has(lower) || lower === mine ? "me" : "them";
       messages.push({ from, text: m[2]!.trim() });
-      owners.push(name);
       continue;
     }
 
@@ -54,21 +54,14 @@ export function parseChat(input: string, myName?: string): ParsedChat {
       last.text = `${last.text}\n${line}`;
     } else {
       messages.push({ from: "them", text: line });
-      owners.push(undefined);
     }
   }
 
-  // Two named people and neither is an alias for "me": assume the second
-  // speaker is the user (people usually paste starting with the other
-  // person's message). The UI lets them swap if that's wrong.
+  // Participant order is not evidence of identity. Ask before generating.
   const named = speakers.filter((s) => !ME_ALIASES.has(s.toLowerCase()) && !THEM_ALIASES.has(s.toLowerCase()));
   const hasMe = messages.some((msg) => msg.from === "me");
-  if (!hasMe && named.length === 2) {
-    const meName = named[1]!;
-    messages.forEach((msg, i) => {
-      if (owners[i] === meName) msg.from = "me";
-    });
-    return { messages: messages.filter((x) => x.text), speakers, theirName: named[0] };
+  if (!hasMe && named.length >= 2) {
+    return { messages: messages.filter((x) => x.text), speakers, unresolvedSpeakers: named };
   }
 
   const theirName = named.find((s) => s.toLowerCase() !== mine);

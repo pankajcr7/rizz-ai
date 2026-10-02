@@ -3,15 +3,16 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { DatePlanRequestSchema, LanguageSchema, SuggestRequestSchema } from "@rizz/shared";
 import { createClaudeAI } from "../src/ai/claude.js";
 import { normalizeDate } from "../src/ai/dateShared.js";
-import { buildDatePrompt, COACH_SYSTEM, DATE_SYSTEM, SUGGEST_SYSTEM } from "../src/ai/prompts.js";
+import { buildDatePrompt, buildSuggestPrompt, DATE_SYSTEM, SUGGEST_SYSTEM } from "../src/ai/prompts.js";
 import { createGroqTranscriber, isLikelySilence } from "../src/ai/transcribe.js";
 import { AiUnavailableError } from "../src/ai/types.js";
 
 describe("Indian code-mix languages", () => {
-  it("are accepted and explained in every prompt", () => {
+  it("are accepted and included in the selected language settings", () => {
     for (const l of ["tanglish", "tenglish", "benglish", "manglish", "kanglish", "punglish"]) {
       expect(LanguageSchema.parse(l)).toBe(l);
-      for (const p of [SUGGEST_SYSTEM, COACH_SYSTEM, DATE_SYSTEM]) expect(p).toContain(`"${l}"`);
+      const request = SuggestRequestSchema.parse({ tone: "smooth", messages: [{ from: "them", text: "hello" }], prefs: { language: LanguageSchema.parse(l) } });
+      expect(buildSuggestPrompt(request, "none")).toContain(`"${l}"`);
     }
   });
 });
@@ -28,7 +29,7 @@ describe("ghost risk", () => {
       },
     }));
     const client = { beta: { messages: { parse } } } as unknown as Anthropic;
-    const req = SuggestRequestSchema.parse({ tone: "smooth", messages: [{ from: "them", text: "k" }] });
+    const req = SuggestRequestSchema.parse({ tone: "smooth", count: 1, messages: [{ from: "them", text: "k" }] });
     const res = await createClaudeAI({ model: "m", effort: "low", client }).suggest(req, "none");
     expect(res.vibe.ghost).toEqual({ risk: 70, reason: "one-word replies", fix: "ask something fun" });
     expect(SUGGEST_SYSTEM).toContain("Ghost risk");

@@ -32,14 +32,37 @@ export interface RawChatOut {
   safety: { flag: SafetyFlag; message: string };
 }
 
+export interface RawCoachOut {
+  recommendation: string;
+  evidence: string;
+  nextStep: string;
+  example: string | null;
+  safety: RawChatOut["safety"];
+}
+export function coachIssue(out: RawCoachOut): string | undefined {
+  if (out.safety.flag !== "none") return;
+  if (![out.recommendation, out.evidence, out.nextStep].every((part) => part.trim())) return "Give a recommendation, explain the evidence and uncertainty, and provide a practical next step. Do not return just a sample text.";
+}
+export function normalizeCoach(out: RawCoachOut, req: ChatRequestParsed, forcedFlag: SafetyFlag): ChatResponse {
+  const advice = [out.recommendation, out.evidence, out.nextStep].map((part) => part.trim()).filter(Boolean).join(" ");
+  const known = [req.prefs.aboutMe, ...req.turns.filter((t) => t.role === "user").map((t) => t.content), ...(req.context?.messages ?? []).filter((m) => m.from === "me").map((m) => m.text)].filter(Boolean).join(" ").toLowerCase();
+  // Drop a sample's unsupported first-person factual sentence while preserving
+  // a usable question or invitation. Advice is kept intact.
+  const example = (out.example?.trim() ?? "").split(/(?<=[.!?])\s+/).filter((sentence) => {
+    const claim = sentence.match(/\b(?:my\s+[^.!?]+|i\s+(?:love|like|enjoy|went|have|work|study|studied|live|read|spent|cook)\s+[^.!?]+)/i)?.[0];
+    return !claim || /\[[^\]]+\]/.test(claim) || known.includes(claim.toLowerCase());
+  }).join(" ");
+  return normalizeChat({ reply: advice + (example ? `\n\nTry: ${example}` : ""), feedback: null, safety: out.safety }, req, forcedFlag);
+}
+
 export function normalizeChat(out: RawChatOut, req: ChatRequestParsed, forcedFlag: SafetyFlag): ChatResponse {
   const flag = mergeFlag(forcedFlag, out.safety.flag);
-  const message = out.safety.message || SAFETY_MESSAGES[flag];
+  const message = SAFETY_MESSAGES[flag];
   if (flag === "possible_minor") {
     return { reply: SAFETY_MESSAGES.possible_minor, feedback: null, safety: { flag, message } };
   }
   const feedback =
-    req.mode === "practice" && out.feedback
+    flag === "none" && req.mode === "practice" && out.feedback
       ? { ...out.feedback, score: Math.max(1, Math.min(10, Math.round(out.feedback.score))) }
       : null;
   return { reply: out.reply.trim(), feedback, safety: { flag, message: flag === "none" ? "" : message } };

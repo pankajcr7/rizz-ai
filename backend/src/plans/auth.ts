@@ -19,12 +19,12 @@ export function issueToken(deviceId: string, secret: string): string {
   return `${payload}.${sign(payload, secret)}`;
 }
 
-export function issueAccountToken(deviceId: string, secret: string): string {
-  const payload = Buffer.from(JSON.stringify({ d: deviceId, k: "account", iat: Date.now() })).toString("base64url");
+export function issueAccountToken(deviceId: string, secret: string, version = 0): string {
+  const payload = Buffer.from(JSON.stringify({ d: deviceId, k: "account", v: version, iat: Date.now() })).toString("base64url");
   return `${payload}.${sign(payload, secret)}`;
 }
 
-export function verifySession(token: string | undefined, secret: string): { deviceId: string; kind: "guest" | "account" } | null {
+export function verifySession(token: string | undefined, secret: string): { deviceId: string; kind: "guest" | "account"; version: number } | null {
   if (!token) return null;
   const [payload, sig] = token.split(".");
   if (!payload || !sig) return null;
@@ -32,12 +32,13 @@ export function verifySession(token: string | undefined, secret: string): { devi
   const given = Buffer.from(sig);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const { d, k, iat } = JSON.parse(Buffer.from(payload, "base64url").toString());
+    const { d, k, v = 0, iat } = JSON.parse(Buffer.from(payload, "base64url").toString());
     if (!isValidDeviceId(d)) return null;
     const kind = k === "account" ? "account" : k === "guest" || k == null ? "guest" : null;
     if (!kind) return null;
     if (kind === "account" && (typeof iat !== "number" || iat > Date.now() + 60_000 || Date.now() - iat > 90 * 86_400_000)) return null;
-    return { deviceId: d, kind };
+    if (!Number.isSafeInteger(v) || v < 0) return null;
+    return { deviceId: d, kind, version: v };
   } catch {
     return null;
   }

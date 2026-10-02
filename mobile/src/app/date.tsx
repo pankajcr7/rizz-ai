@@ -54,7 +54,7 @@ export default function DatePlanner() {
         prefs,
       });
       setPlan(res);
-      useProgress.getState().award("reply");
+      if (res.safety.flag === "none") useProgress.getState().award("reply");
       void useApp.getState().refreshMe();
     } catch (e) {
       setError({ message: errorMessage(e), quota: e instanceof RizzApiError && e.code === "quota_exceeded" });

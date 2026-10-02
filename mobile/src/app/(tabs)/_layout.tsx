@@ -9,7 +9,7 @@ import { colors, font } from "../../theme";
 
 function tabIcon(outline: IconName, filled: IconName) {
   function TabIcon({ focused }: { focused: boolean }) {
-    return <View style={{ width: 54, height: 42, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: focused ? colors.lime : "transparent" }}>
+    return <View style={{ width: 54, height: 32, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: focused ? colors.lime : "transparent" }}>
       <Ionicons name={focused ? filled : outline} size={23} color={focused ? colors.bg : colors.textDim} />
     </View>;
   }
@@ -35,6 +35,7 @@ export default function TabsLayout() {
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, lineHeight: 16, fontFamily: font.bold },
+        tabBarIconStyle: { height: 32, marginBottom: 4 },
         tabBarActiveTintColor: colors.lime,
         tabBarInactiveTintColor: colors.textDim,
       }}

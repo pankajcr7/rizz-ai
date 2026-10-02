@@ -22,9 +22,11 @@ import type {
   ToneId,
 } from "@rizz/shared";
 import { buildDatePrompt, buildOpenersPrompt, buildProfilePrompt, buildSuggestPrompt, chatSystem, DATE_SYSTEM, EXTRACT_SYSTEM, OPENERS_SYSTEM, PROFILE_SYSTEM, SUGGEST_SYSTEM } from "./prompts.js";
-import { normalizeChat, prepareTurns } from "./chatShared.js";
+import { coachIssue, normalizeChat, normalizeCoach, prepareTurns } from "./chatShared.js";
 import { mergeFlag } from "./safetyFlags.js";
-import { ChatOut, DateOut, ExtractOut, OpenersOut, ProfileOut, SuggestOut } from "./schemas.js";
+import { SAFETY_MESSAGES } from "../safety/guardrails.js";
+import { groundFillInText, suggestionIssue } from "./suggestionQuality.js";
+import { ChatOut, CoachOut, DateOut, ExtractOut, OpenersOut, ProfileOut, SuggestOut } from "./schemas.js";
 import { normalizeDate } from "./dateShared.js";
 import { normalizeProfile } from "./profileShared.js";
 import { AiDeclinedError, AiUnavailableError, type RizzAI } from "./types.js";
@@ -66,13 +68,14 @@ export function createClaudeAI(cfg: ClaudeConfig): RizzAI {
         output_config: { effort: cfg.effort, format: betaZodOutputFormat(schema) },
       });
     } catch (err) {
-      if (err instanceof Anthropic.RateLimitError) throw new AiUnavailableError("AI is busy, try again in a moment", err);
-      if (err instanceof Anthropic.InternalServerError) throw new AiUnavailableError("AI is temporarily unavailable", err);
-      if (err instanceof Anthropic.APIConnectionError) throw new AiUnavailableError("Could not reach the AI", err);
+      if (err instanceof Anthropic.RateLimitError) throw new AiUnavailableError("AI is busy, try again in a moment", new Error("Anthropic HTTP 429"));
+      if (err instanceof Anthropic.InternalServerError) throw new AiUnavailableError("AI is temporarily unavailable", new Error(`Anthropic HTTP ${err.status}`));
+      if (err instanceof Anthropic.APIConnectionError) throw new AiUnavailableError("Could not reach the AI", new Error("Anthropic connection failed"));
       // Server misconfiguration (missing/invalid key). Users see "unavailable"; the log says why.
       if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-        throw new AiUnavailableError("AI is temporarily unavailable", new Error(`Anthropic API key rejected: ${err.message}`));
+        throw new AiUnavailableError("AI is temporarily unavailable", new Error(`Anthropic API key rejected (HTTP ${err.status})`));
       }
+      if (err instanceof Anthropic.APIError) throw new Error(`Anthropic HTTP ${err.status}`);
       throw err; // 400/401/404 are our bugs — surface them as 500s
     }
     if (res.stop_reason === "refusal") throw new AiDeclinedError(res.stop_details?.explanation ?? undefined);
@@ -84,8 +87,14 @@ export function createClaudeAI(cfg: ClaudeConfig): RizzAI {
 
   return {
     async suggest(req: SuggestRequestParsed, forcedFlag: SafetyFlag): Promise<SuggestResponse> {
-      const out = await call(SuggestOut, SUGGEST_SYSTEM, [{ type: "text", text: buildSuggestPrompt(req, forcedFlag) }]);
-      return normalizeSuggest(out, req.count, forcedFlag);
+      const text = buildSuggestPrompt(req, forcedFlag);
+      let out = await call(SuggestOut, SUGGEST_SYSTEM, [{ type: "text", text }]);
+      const issue = suggestionIssue(out.suggestions, req.count, out.safety.flag);
+      if (issue) {
+        out = await call(SuggestOut, SUGGEST_SYSTEM, [{ type: "text", text: `${text}\n\nCorrect the previous output: ${issue}` }]);
+        if (suggestionIssue(out.suggestions, req.count, out.safety.flag)) throw new AiUnavailableError("Couldn't produce usable replies. Please try again.");
+      }
+      return normalizeSuggest(out, req.count, forcedFlag, req);
     },
 
     async openers(args: {
@@ -112,6 +121,15 @@ export function createClaudeAI(cfg: ClaudeConfig): RizzAI {
 
     async chat(req: ChatRequestParsed, forcedFlag: SafetyFlag): Promise<ChatResponse> {
       const turns = prepareTurns(req).map((t) => ({ role: t.role, content: t.content }));
+      if (req.mode === "coach") {
+        let out = await call(CoachOut, chatSystem(req.mode), turns);
+        const issue = coachIssue(out);
+        if (issue) {
+          out = await call(CoachOut, chatSystem(req.mode), [...turns, { role: "user", content: issue }]);
+          if (coachIssue(out)) throw new AiUnavailableError("Couldn't produce useful coaching. Please try again.");
+        }
+        return normalizeCoach(out, req, forcedFlag);
+      }
       const out = await call(ChatOut, chatSystem(req.mode), turns);
       return normalizeChat(out, req, forcedFlag);
     },
@@ -165,20 +183,20 @@ export function cleanMemory(facts: string[]): string[] {
   return out;
 }
 
-export function normalizeSuggest(out: z.infer<typeof SuggestOut>, count: number, forcedFlag: SafetyFlag): SuggestResponse {
+export function normalizeSuggest(out: z.infer<typeof SuggestOut>, count: number, forcedFlag: SafetyFlag, req?: SuggestRequestParsed): SuggestResponse {
   const flag = mergeFlag(forcedFlag, out.safety.flag);
   return {
-    suggestions: flag === "possible_minor" ? [] : out.suggestions.filter((s) => s.text.trim()).slice(0, count),
+    suggestions: flag === "possible_minor" ? [] : out.suggestions.filter((s) => s.text.trim()).slice(0, count).map((s) => ({ ...s, text: flag === "none" ? groundFillInText(s.text) : s.text })),
     vibe: {
       ...out.vibe,
       interest: toPercent(out.vibe.interest),
       signals: out.vibe.signals.slice(0, 5),
       ghost: out.vibe.ghost ? { ...out.vibe.ghost, risk: toPercent(out.vibe.ghost.risk) } : undefined,
     },
-    safety: { flag, message: out.safety.message },
+    safety: { flag, message: SAFETY_MESSAGES[flag] },
     coachTip: out.coachTip,
     memory: flag === "possible_minor" ? [] : cleanMemory(out.memory ?? []),
-    nextMove: out.nextMove,
+    nextMove: flag !== "none" ? { action: "end", reason: SAFETY_MESSAGES[flag] } : req?.messages.at(-1)?.from === "me" ? { action: "wait", reason: "Your message is already the latest one in this chat. Give them room to respond." } : out.nextMove,
     missingInfo: out.missingInfo,
     stage: out.stage?.plan.trim() ? { id: out.stage.id, plan: out.stage.plan.trim() } : undefined,
   };
