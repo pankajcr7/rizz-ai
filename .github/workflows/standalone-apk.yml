@@ -1,0 +1,61 @@
+name: Updated UI Android APK
+
+on:
+  push:
+    branches:
+      - codex-updated-ui-apk
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Android project
+        working-directory: mobile
+        env:
+          CI: "1"
+          EAS_BUILD_PROFILE: production
+          EXPO_PUBLIC_API_URL: https://rizz-ai-api.onrender.com
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build standalone release APK
+        working-directory: mobile/android
+        env:
+          CI: "1"
+          NODE_ENV: production
+          EXPO_PUBLIC_API_URL: https://rizz-ai-api.onrender.com
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK
+        run: test -f mobile/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload standalone APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rizz-ai-updated-ui-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
